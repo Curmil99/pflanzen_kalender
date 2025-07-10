@@ -3,6 +3,7 @@ import 'package:table_calendar/table_calendar.dart';
 import 'day_detail_screen.dart';  // <– ganz oben ergänzen
 import '../repositories/day_repo.dart'; //  unbedingt hinzufügen
 import '../models/day_entry.dart';
+import 'package:intl/intl.dart';
 
 
 enum CalendarViewMode {
@@ -29,6 +30,14 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   DateTime _focusedDay = DateTime.now();
   bool _modified = false;               // <– Merkt, ob etwas geändert wurde
   
+
+
+  // Hilfsfunktion: DateKey erzeugen (z.B. "2025-07-09")
+  String _dateKey(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, "0")}-${date.day.toString().padLeft(2, "0")}';
+  }
+
+  // Hier wied die Ansicht vom ViewMode/Anischt ausgewählt
   CalendarViewMode _currentViewMode = CalendarViewMode.aktuelleAnsicht;
 
   String getViewModeName(CalendarViewMode mode) {
@@ -45,27 +54,93 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
 
-  // HIER ist widget.kategorie / widget.eventName verfügbar
-  List<DayEntry> _getAndereEventEintraege(String dateKey) {
+
+  static final _keyFmt = DateFormat('yyyy-MM-dd');
+
+  List<DayEntry> _getAndereEventEintraege(DateTime date) {
+    switch (_currentViewMode) {
+      case CalendarViewMode.nurAktuellesEvent:
+        return [];
+      case CalendarViewMode.aktuelleAnsicht:
+        return _getAndereEventsAktuellesJahr(date);
+      case CalendarViewMode.vorjahreImMonat:
+        return _getAndereEventsVorjahreImMonat(date);
+      case CalendarViewMode.relativeTage:
+        return _getAndereEventsRelativeTage(date);
+    }
+  }
+
+  //Hier werden die anderen Tage rausgesucht, die aus den anderen Events sind
+
+  List<DayEntry> _getAndereEventsAktuellesJahr(DateTime date) {
     final katMap = DayRepo().allEntries[widget.kategorie];
     if (katMap == null) return [];
 
+    final dateKey = _keyFmt.format(date);           // <-- Umwandlung!
     final List<DayEntry> result = [];
+
     katMap.forEach((event, dateMap) {
-      if (event == widget.eventName) return;      // aktuelles Event überspringen
-      final entry = dateMap[dateKey];
+      if (event == widget.eventName) return;        // aktuelles Event überspringen
+      final entry = dateMap[dateKey];               // jetzt passt der Key wieder
       if (entry != null && entry.title.isNotEmpty) result.add(entry);
     });
     return result;
   }
+  List<DayEntry> _getAndereEventsVorjahreImMonat(DateTime viewDate) {
+    final katMap = DayRepo().allEntries[widget.kategorie];
+    if (katMap == null) {
+      debugPrint('⚠️  Keine Einträge für Kategorie ${widget.kategorie}');
+      return [];
+    }
+
+    final int ansichtsJahr = viewDate.year;
+    final int systemJahr = DateTime.now().year;
+    final int monat = viewDate.month;
+    final int tag = viewDate.day;
+
+    final List<DayEntry> result = [];
+
+    katMap.forEach((event, dateMap) {
+      if (event == widget.eventName) return; // eigenes Event auslassen
+      debugPrint('🔍 Prüfe Event "$event"');
+
+      dateMap.forEach((key, entry) {
+        if (key.length != 10) return; // Format prüfen, kann man optional lassen
+
+        DateTime? date;
+        try {
+          date = DateTime.parse(key);
+        } catch (e) {
+          return; // Ungültiges Datum überspringen
+        }
+
+        if (date.month != monat) return; // falscher Monat
+        if (date.day != tag) return;     // falscher Tag
+
+        if (date.year == ansichtsJahr) return; // gleiches Jahr raus
+        if (date.year > systemJahr) return;    // Zukunft raus
+
+        debugPrint('    ✔︎ Gefunden: year=${date.year}, entry=${entry.title}');
+        if (entry.title.isNotEmpty) result.add(entry);
+      });
+    });
+
+    debugPrint('➡️  result.length = ${result.length}');
+    return result;
+  }
+
+  List<DayEntry> _getAndereEventsRelativeTage(DateTime date) { return []; }
+
+
+
 
   Widget _buildDayCell(DateTime date, bool isToday) {
-    final dateKey = '${date.year}-${date.month.toString().padLeft(2,"0")}-${date.day.toString().padLeft(2,"0")}';
+    final dateKey = _dateKey(date);
 
     final current = DayRepo().getEntry(widget.kategorie, widget.eventName, dateKey);
 
-    final andere = _getAndereEventEintraege(dateKey);
-   
+    final andere = _getAndereEventEintraege(date);
+
     return Container(
       width: double.infinity,
       margin: EdgeInsets.all(2),
@@ -87,11 +162,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               _badge(current.title, Colors.green.shade400, Colors.white),
 
             // Andere Events – blassere Farbe
-            if (_currentViewMode == CalendarViewMode.aktuelleAnsicht)...[
+            //if (_currentViewMode == CalendarViewMode.aktuelleAnsicht)...[
               for (final e in andere)
                 _badge(e.title, Colors.green.shade200, Colors.black87),
             ]
-          ],
+          //],
         ),
       ),
     );
