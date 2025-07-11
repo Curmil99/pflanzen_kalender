@@ -95,20 +95,21 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     final dateKey = '${widget.selectedDate.year}-${widget.selectedDate.month.toString().padLeft(2,'0')}-${widget.selectedDate.day.toString().padLeft(2,'0')}';
 
     final entry = DayEntry(
-      kategorie: widget.kategorie,         // Kategorie mitgeben
-      event: widget.eventName,             // Event-Name mitgeben
-      datum: dateKey,                      // Datum als String (z.B. "2025-07-02")
+      kategorie: widget.kategorie,
+      event: widget.eventName,
+      datum: dateKey,
       title: _title,
       note: _noteCtrl.text,
       imagePaths: _bilder.map((f) => f.path).toList(),
-      );
+    );
+
   
+    final bool hasContent = _title.trim().isNotEmpty || _noteCtrl.text.trim().isNotEmpty || _bilder.isNotEmpty;
+    if (hasContent) {
       DayRepo().saveEntry(widget.kategorie, widget.eventName, dateKey, entry);
-  
-      Navigator.pop(context, true); // true signalisiert, dass gespeichert wurde
-    
-  
-  
+    } else {
+      DayRepo().deleteEntry(widget.kategorie, widget.eventName, dateKey);
+    }
   }
 
 
@@ -198,7 +199,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
         child: ElevatedButton(
           onPressed: () {
             final bool hasContent =
-                _noteCtrl.text.trim().isNotEmpty || _bilder.isNotEmpty;
+                 _title.trim().isNotEmpty || _noteCtrl.text.trim().isNotEmpty || _bilder.isNotEmpty;
 
             if (hasContent) {
               // speichern

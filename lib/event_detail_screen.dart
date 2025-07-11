@@ -70,7 +70,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     }
   }
 
-  //Hier werden die anderen Tage rausgesucht, die aus den anderen Events sind
+  //Hier werden die anderen Tage rausgesucht, die aus den anderen Events
 
   List<DayEntry> _getAndereEventsAktuellesJahr(DateTime date) {
     final katMap = DayRepo().allEntries[widget.kategorie];
@@ -129,17 +129,64 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     return result;
   }
 
-  List<DayEntry> _getAndereEventsRelativeTage(DateTime date) { return []; }
+    DateTime? _getStartDatum(Map<String, DayEntry> dateMap) {
+      if (dateMap.isEmpty) return null;
+      final dates = dateMap.keys
+          .map((k) => DateTime.tryParse(k))
+          .whereType<DateTime>()
+          .toList();
+      if (dates.isEmpty) return null;
+      dates.sort();
+      return dates.first;
+    }
 
+    DateTime _stripTime(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
+
+
+ List<DayEntry> _getAndereEventsRelativeTage(DateTime date) {
+    final katMap = DayRepo().allEntries[widget.kategorie];
+    if (katMap == null) return [];
+
+    final currentEventMap = katMap[widget.eventName];
+    if (currentEventMap == null) return [];
+
+    // Startdatum des aktuellen Events
+    final startDatumAktuell = _getStartDatum(currentEventMap);
+    if (startDatumAktuell == null) return [];
+
+    final relativerTag = _stripTime(date).difference(_stripTime(startDatumAktuell)).inDays;
+
+    if (relativerTag < 0) return []; // <--- Nur ab Tag 0!
+
+    final List<DayEntry> result = [];
+
+    katMap.forEach((event, dateMap) {
+      if (event == widget.eventName) return; // aktuelles Event überspringen
+      final startDatum = _getStartDatum(dateMap);
+      if (startDatum == null) return;
+
+      final zielDatum = startDatum.add(Duration(days: relativerTag));
+      final key = _dateKey(zielDatum);
+      final entry = dateMap[key];
+      if (entry != null && entry.title.isNotEmpty) result.add(entry);
+    });
+
+    return result;
+  }
 
 
 
   Widget _buildDayCell(DateTime date, bool isToday) {
+
+    
+
     final dateKey = _dateKey(date);
 
     final current = DayRepo().getEntry(widget.kategorie, widget.eventName, dateKey);
 
     final andere = _getAndereEventEintraege(date);
+
+    
 
     return Container(
       width: double.infinity,
