@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/day_entry.dart';        // DayEntry Modell
 import '../repositories/day_repo.dart';  // DayRepo Singleton
+import 'VergleichsAnsicht.dart';
 
 
 
@@ -49,6 +50,17 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       _title = '${widget.selectedDate.day}.${widget.selectedDate.month}.${widget.selectedDate.year}';
     }
   }
+
+  DateTime? _getStartDatum(Map<String, DayEntry> dateMap) {
+    final dates = dateMap.keys
+        .map((k) => DateTime.tryParse(k))
+        .whereType<DateTime>()
+        .toList();
+    if (dates.isEmpty) return null;
+    dates.sort();
+    return dates.first;
+  }
+
 
 
   /* ---------- Titel bearbeiten ---------- */
@@ -125,6 +137,35 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           child: Text(_title),
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.compare),
+            tooltip: 'Vergleichen',
+            onPressed: () {
+              final date = widget.selectedDate;
+              final katMap = DayRepo().allEntries[widget.kategorie];
+              final currentEventMap = katMap?[widget.eventName];
+
+              if (currentEventMap == null) return;
+
+              final startDatum = _getStartDatum(currentEventMap);
+              if (startDatum == null) return;
+
+              final relativerTag = date.difference(startDatum).inDays;
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => VergleichsAnsicht(
+                    aktuellesEventName: widget.eventName,
+                    kategorie: widget.kategorie,
+                    aktuellerTag: relativerTag,
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
