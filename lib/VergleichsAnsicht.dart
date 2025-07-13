@@ -2,6 +2,13 @@ import 'dart:io'; // Ganz oben
 import 'package:flutter/material.dart';
 import '../repositories/day_repo.dart';
 import '../models/day_entry.dart';
+import 'direkt_vergleich_nsicht.dart';
+import '../models/Nerv1.dart'; // Importiere dein Vergleichseintrag Modell
+
+
+
+
+
 
 class VergleichsAnsicht extends StatefulWidget {
   final String aktuellesEventName;
@@ -16,7 +23,7 @@ class VergleichsAnsicht extends StatefulWidget {
   });
 
   @override
-  State<VergleichsAnsicht> createState() => _VergleichsAnsichtState();
+  State<VergleichsAnsicht> createState() => VergleichsAnsichtState();
 }
 
 // Diese Funktion sucht den Eintrag, der dem Ziel-Datum am nächsten ist
@@ -38,26 +45,26 @@ DayEntry? _findClosestEntry(Map<String, DayEntry> dateMap, DateTime target) {
 }
 
 
-class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
-  late List<_Vergleichseintrag> _vergleichseintraege;
+class VergleichsAnsichtState extends State<VergleichsAnsicht> {
+  late List<Vergleichseintrag> vergleichseintraege;
 
   @override
   void initState() {
     super.initState();
-    _vergleichseintraege = _loadVergleichsdaten();
+    vergleichseintraege = _loadVergleichsdaten();
   }
 
   String _dateKey(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
-  List<_Vergleichseintrag> _loadVergleichsdaten() {
+  List<Vergleichseintrag> _loadVergleichsdaten() {
     final Map<String, Map<String, DayEntry>>? katMap =
         DayRepo().allEntries[widget.kategorie];
 
     if (katMap == null) return [];
 
-    final List<_Vergleichseintrag> result = [];
+    final List<Vergleichseintrag> result = [];
 
     final currentEventMap = katMap[widget.aktuellesEventName];
     if (currentEventMap == null) return [];
@@ -69,11 +76,12 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
     final eintragAktuell = currentEventMap[_dateKey(zielDatumAktuell)];
 
     if (eintragAktuell != null && eintragAktuell.imagePaths.isNotEmpty) {
-      result.add(_Vergleichseintrag(
+      result.add(Vergleichseintrag(
         eventName: widget.aktuellesEventName,
         tag: widget.aktuellerTag,
         eintrag: eintragAktuell,
       ));
+
     }
 
     katMap.forEach((event, dateMap) {
@@ -93,7 +101,7 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
           relativeTag = entryDatum.difference(startDatum).inDays;
         }
 
-        result.add(_Vergleichseintrag(
+        result.add(Vergleichseintrag(
           eventName: event,
           tag: relativeTag,  // hier den korrekten Tag setzen
           eintrag: closestEntry,
@@ -122,9 +130,9 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
     return Scaffold(
       appBar: AppBar(title: const Text('Vergleichsansicht')),
       body: ListView.builder(
-        itemCount: _vergleichseintraege.length,
+        itemCount: vergleichseintraege.length,
         itemBuilder: (_, index) {
-          final eintrag = _vergleichseintraege[index];
+          final eintrag = vergleichseintraege[index];
           return ListTile(
             title: Text('${eintrag.eventName} (Tag ${eintrag.tag + 1})'),
             subtitle: Text(eintrag.eintrag.title),
@@ -139,18 +147,31 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
           );
         },
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          if (vergleichseintraege.length < 2) return;
+
+          // Schritt 2: Typen explizit angeben
+          final Vergleichseintrag aktueller = vergleichseintraege.first;
+          final List<Vergleichseintrag> vergleichsEintraege = vergleichseintraege   
+            .where((e) => e.eventName != aktueller.eventName)
+            .toList();
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => DirektVergleichAnsicht(
+                aktuellerEintrag: aktueller,
+                vergleichsEintraege: vergleichsEintraege,
+              ),
+            ),
+          );
+
+        },
+        child: Icon(Icons.compare_arrows),
+      ),
+
     );
   }
 }
 
-class _Vergleichseintrag {
-  final String eventName;
-  final DayEntry eintrag;
-  final int tag;
-
-  _Vergleichseintrag({
-    required this.eventName,
-    required this.eintrag,
-    required this.tag,
-  });
-}
