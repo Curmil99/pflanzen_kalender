@@ -133,17 +133,56 @@ class VergleichsAnsichtState extends State<VergleichsAnsicht> {
         itemCount: vergleichseintraege.length,
         itemBuilder: (_, index) {
           final eintrag = vergleichseintraege[index];
-          return ListTile(
-            title: Text('${eintrag.eventName} (Tag ${eintrag.tag + 1})'),
-            subtitle: Text(eintrag.eintrag.title),
-            trailing: eintrag.eintrag.imagePaths.isNotEmpty
-                ? Image.file(
-                    File(eintrag.eintrag.imagePaths.first),
-                    width: 50,
-                    height: 50,
-                    fit: BoxFit.cover,
-                  )
-                : null,
+          return Padding(   //Der Padding Teil ist für die Ansicht da (also Event Name, Tag und Bilder) und auch, dass die Bilder Scoollbar sind
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // EventName + Tag in einer Zeile
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      eintrag.eventName,
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    Text('Tag ${eintrag.tag + 1}'),
+                  ],
+                ),
+
+                const SizedBox(height: 4),
+
+                // Titel falls gewünscht
+                if (eintrag.eintrag.title.isNotEmpty)
+                  Text(
+                    eintrag.eintrag.title,
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+
+                const SizedBox(height: 8),
+
+                // Bildreihe horizontal scrollbar
+                if (eintrag.eintrag.imagePaths.isNotEmpty)
+                  SizedBox(
+                    height: 100,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: eintrag.eintrag.imagePaths.length,
+                      itemBuilder: (_, imgIndex) {
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: Image.file(
+                            File(eintrag.eintrag.imagePaths[imgIndex]),
+                            width: 100,
+                            height: 100,
+                            fit: BoxFit.cover,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
           );
         },
       ),
