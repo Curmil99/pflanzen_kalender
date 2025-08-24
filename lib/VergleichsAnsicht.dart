@@ -8,6 +8,11 @@ import '../models/Nerv1.dart'; // Importiere dein Vergleichseintrag Modell
 
 
 
+enum VergleichsModus {
+  relativ,
+  datum,
+}
+
 
 
 class VergleichsAnsicht extends StatefulWidget {
@@ -15,11 +20,15 @@ class VergleichsAnsicht extends StatefulWidget {
   final String kategorie;
   final int aktuellerTag;
 
+    // NEU: Modus
+  final VergleichsModus modus;
+
   const VergleichsAnsicht({
     super.key,
     required this.aktuellesEventName,
     required this.kategorie,
     required this.aktuellerTag,
+    this.modus = VergleichsModus.relativ, // Default ist relativer Modus
   });
 
   @override
@@ -47,6 +56,7 @@ DayEntry? _findClosestEntry(Map<String, DayEntry> dateMap, DateTime target) {
 
 class VergleichsAnsichtState extends State<VergleichsAnsicht> {
   late List<Vergleichseintrag> vergleichseintraege;
+  VergleichsModus modus = VergleichsModus.relativ; // Startmodus
 
   @override
   void initState() {
@@ -90,31 +100,45 @@ class VergleichsAnsichtState extends State<VergleichsAnsicht> {
       final startDatum = _getStartDatum(dateMap);
       if (startDatum == null) return;
 
-      final zielDatum = startDatum.add(Duration(days: widget.aktuellerTag));
-      final closestEntry = _findClosestEntry(dateMap, zielDatum);
+      DayEntry? closestEntry;
+      int relativeTag = 0;
+
+      if (modus == VergleichsModus.relativ) {
+        // wie bisher: Tag relativ zum Event berechnen
+        final zielDatum = startDatum.add(Duration(days: widget.aktuellerTag));
+        closestEntry = _findClosestEntry(dateMap, zielDatum);
+
+        if (closestEntry != null) {
+          final entryDatum = DateTime.tryParse(closestEntry.datum);
+          if (entryDatum != null) {
+            relativeTag = entryDatum.difference(startDatum).inDays;
+          }
+        }
+      } else {
+        // datum-Modus: wähle den Eintrag, der dem gleichen Kalendertag wie aktuelles Event entspricht
+        DateTime target = zielDatumAktuell;
+        closestEntry = _findClosestEntry(dateMap, target);
+
+        if (closestEntry != null) {
+          final entryDatum = DateTime.tryParse(closestEntry.datum);
+          if (entryDatum != null) {
+            relativeTag = entryDatum.difference(startDatum).inDays;
+          }
+        }
+      }
 
       if (closestEntry != null && closestEntry.imagePaths.isNotEmpty) {
-        // Berechne den Tag des closestEntry relativ zum Startdatum dieses Events
-        final entryDatum = DateTime.tryParse(closestEntry.datum);
-        int relativeTag = 0;
-        if (entryDatum != null) {
-          relativeTag = entryDatum.difference(startDatum).inDays;
-        }
-
         result.add(Vergleichseintrag(
           eventName: event,
-          tag: relativeTag,  // hier den korrekten Tag setzen
+          tag: relativeTag,
           eintrag: closestEntry,
         ));
       }
     });
 
-
-
     result.sort((a, b) => a.tag.compareTo(b.tag));
     return result;
   }
-
   DateTime? _getStartDatum(Map<String, DayEntry> dateMap) {
     final dates = dateMap.keys
         .map((k) => DateTime.tryParse(k))
@@ -128,7 +152,51 @@ class VergleichsAnsichtState extends State<VergleichsAnsicht> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Vergleichsansicht')),
+      appBar: AppBar(
+        title: const Text('Vergleichsansicht'),
+        backgroundColor: Colors.green[800], // AppBar dunkler
+        bottom: PreferredSize(
+          preferredSize: Size.fromHeight(50),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Linker Pfeil
+                  IconButton(
+                    icon: Icon(Icons.arrow_left, color: Colors.white),
+                    onPressed: () {
+                      setState(() {
+                        modus = VergleichsModus.relativ;
+                        vergleichseintraege = _loadVergleichsdaten();
+                      });
+                    },
+                  ),
+
+                  // Rechter Pfeil
+                  IconButton(
+                    icon: Icon(Icons.arrow_right, color: Colors.white),
+                    onPressed: () {
+                      setState(() {
+                        modus = VergleichsModus.datum;
+                        vergleichseintraege = _loadVergleichsdaten();
+                      });
+                    },
+                  ),
+                ],
+              ),
+              // Anzeige des aktuellen Modus
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Text(
+                  'Aktueller Modus: ${modus == VergleichsModus.relativ ? "Relativ" : "Datum"}',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
       body: ListView.builder(
         itemCount: vergleichseintraege.length,
         itemBuilder: (_, index) {

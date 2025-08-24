@@ -335,23 +335,53 @@ class _EventListeScreenState extends State<EventListeScreen> {
           
           return ListTile(
             title: Text(event),
-            trailing: Text('$span'),               // Zahl anzeigen
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min, // wichtig, damit die Row nicht den ganzen Platz einnimmt
+              children: [
+                // Zahl (Tage)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: Text(
+                    '$span',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                  ),
+                ),
+                // Neuer Button zum Bilder hinzufügen
+                IconButton(
+                  onPressed: () {
+                    // TODO: Bilder hinzufügen implementieren
+                  },
+                  icon: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Icon(Icons.photo, size: 28),        // Galerie-Symbol
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Icon(Icons.add_circle, size: 14, color: Colors.greenAccent),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
             onTap: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => EventDetailScreen(
-                    kategorie: widget.kategorie,   // aktuelle Kategorie
-                    eventName: event,              // *dieses* Event
+                    kategorie: widget.kategorie,
+                    eventName: event,
                   ),
                 ),
               ).then((modified) {
                 if (modified == true) {
-                  setState(() {});                // sofort neu berechnen + anzeigen
+                  setState(() {});
                 }
               });
             },
           );
+
 
         },
       ),
