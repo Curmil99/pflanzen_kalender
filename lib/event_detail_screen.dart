@@ -70,6 +70,16 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     }
   }
 
+  DateTime? getLastEventDate(String kategorie, String eventName) {
+    final eventMap = DayRepo().allEntries[kategorie]?[eventName];
+    if (eventMap == null || eventMap.isEmpty) return null;
+
+    // Keys sind Strings im Format "JJJJ-MM-TT"
+    final allDates = eventMap.keys.map((key) => DateTime.parse(key)).toList();
+    allDates.sort();
+    return allDates.last; // neuestes Datum
+  }
+
   //Hier werden die anderen Tage rausgesucht, die aus den anderen Events
 
   List<DayEntry> _getAndereEventsAktuellesJahr(DateTime date) {
@@ -311,6 +321,23 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             }
           },
         ),
+
+   floatingActionButton: FloatingActionButton(
+      child: Icon(Icons.history),
+      onPressed: () {
+        final lastDate = getLastEventDate(widget.kategorie, widget.eventName);
+        if (lastDate != null) {
+          setState(() {
+            _focusedDay = lastDate;
+          });
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Keine Einträge vorhanden")),
+          );
+        }
+      },
+    ),
+
       ),
     );
   }
