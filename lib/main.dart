@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'event_detail_screen.dart';
 //import 'day_detail_screen.dart';
 import '../repositories/day_repo.dart'; 
+import '../utils/bilder_hinzufuegen.dart'; // Import hinzufügen
 
 
 void main() {
@@ -348,13 +349,18 @@ class _EventListeScreenState extends State<EventListeScreen> {
                 ),
                 // Neuer Button zum Bilder hinzufügen
                 IconButton(
-                  onPressed: () {
-                    // TODO: Bilder hinzufügen implementieren
+                  onPressed: () async {
+                    await BilderHelper.addBilderZuEvent(
+                      context: context,
+                      kategorie: widget.kategorie,
+                      eventName: event,
+                    );
+                    setState(() {}); // Aktualisiert die Ansicht
                   },
                   icon: Stack(
                     alignment: Alignment.center,
                     children: [
-                      Icon(Icons.photo, size: 28),        // Galerie-Symbol
+                      Icon(Icons.photo, size: 28),
                       Positioned(
                         right: 0,
                         bottom: 0,
@@ -363,6 +369,7 @@ class _EventListeScreenState extends State<EventListeScreen> {
                     ],
                   ),
                 ),
+
               ],
             ),
             onTap: () {
