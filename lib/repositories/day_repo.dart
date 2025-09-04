@@ -25,18 +25,51 @@ class DayRepo {
   }
 
   void deleteEntry(String kat, String event, String datum) {
-    _storage[kat]?[event]?.remove(datum);          // Tag rauswerfen
-    if (_storage[kat]?[event]?.isEmpty ?? false) { // Event leer? -> löschen
+    _storage[kat]?[event]?.remove(datum);
+    if (_storage[kat]?[event]?.isEmpty ?? false) {
       _storage[kat]?.remove(event);
     }
   }
 
-
-  // Ein Bild von einem Eintrag löschen
   void deleteImage(String kategorie, String event, String datum, String imagePath) {
-    _storage[kategorie]?[event]?[datum]?.imagePaths.remove(imagePath);
+    final entry = _storage[kategorie]?[event]?[datum];
+    if (entry == null) return;
+
+    entry.imagePaths.remove(imagePath);
+     // Prüfen, ob noch Inhalt da ist
+    final hasNote = entry.note.trim().isNotEmpty;
+    if (entry.imagePaths.isEmpty && !hasNote) {
+      deleteEntry(kategorie, event, datum);
   }
 
-  // Alle Einträge (für Kalenderansicht, z.B. alle Events und Kategorien)
+  // Kalender aktualisieren
+  // setState muss in der Widget-Klasse aufgerufen werden, nicht hier
+}
+
+  void updateNote(String kategorie, String event, String datum, String note) {
+    final entry = _storage[kategorie]?[event]?[datum];
+    if (entry == null) return;
+
+    entry.note = note;
+    _cleanupEntryIfEmpty(kategorie, event, datum);
+  }
+
+  // Hilfsfunktion: löscht leeren Eintrag
+  void _cleanupEntryIfEmpty(String kategorie, String event, String datum) {
+    final entry = _storage[kategorie]?[event]?[datum];
+    if (entry == null) return;
+
+    final hasTitle = entry.title.trim().isNotEmpty;
+    final hasNote  = entry.note.trim().isNotEmpty;
+    final hasImages = entry.imagePaths.isNotEmpty;
+
+    if (!hasTitle && !hasNote && !hasImages) {
+      deleteEntry(kategorie, event, datum);
+    }
+  }
+
+
+
+  // **Wiederhergestellter Getter, damit alte Dateien funktionieren**
   Map<String, Map<String, Map<String, DayEntry>>> get allEntries => _storage;
 }

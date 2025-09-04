@@ -29,98 +29,80 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   final TextEditingController _noteCtrl =
       TextEditingController();               // Notizen‑Feld
 
-  @override
-  void initState() {
-    super.initState();
+    @override
+    void initState() {
+      super.initState();
 
-    // Schlüssel (Datum als String)
-    final dateKey = '${widget.selectedDate.year}-${widget.selectedDate.month.toString().padLeft(2,'0')}-${widget.selectedDate.day.toString().padLeft(2,'0')}';
+      _dateKey =
+          '${widget.selectedDate.year}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.day.toString().padLeft(2, '0')}';
 
-    _dateKey = '${widget.selectedDate.year}-${widget.selectedDate.month.toString().padLeft(2,'0')}-${widget.selectedDate.day.toString().padLeft(2,'0')}';
+      // Gespeicherte DayEntry laden
+      final savedEntry =
+          DayRepo().getEntry(widget.kategorie, widget.eventName, _dateKey);
 
-    // Gespeicherte DayEntry aus dem Singleton holen
-    final savedEntry = DayRepo().getEntry(widget.kategorie, widget.eventName, dateKey);
-
-    if (savedEntry != null) {
-      _title = savedEntry.title;                          // Titel laden
-      _noteCtrl.text = savedEntry.note;                   // Notiz laden
-      _bilder.clear();
-      _bilder.addAll(savedEntry.imagePaths.map((path) => File(path))); // Bilder laden (Dateipfade in File-Objekte)
-    } else {
-      _title = '${widget.selectedDate.day}.${widget.selectedDate.month}.${widget.selectedDate.year}';
+      if (savedEntry != null) {
+        _title = savedEntry.title;
+        _noteCtrl.text = savedEntry.note;
+        _bilder.addAll(savedEntry.imagePaths.map((p) => File(p)));
+      } else {
+        _title =
+            '${widget.selectedDate.day}.${widget.selectedDate.month}.${widget.selectedDate.year}';
+      }
     }
-  }
 
-  DateTime? _getStartDatum(Map<String, DayEntry> dateMap) {
-    final dates = dateMap.keys
-        .map((k) => DateTime.tryParse(k))
-        .whereType<DateTime>()
-        .toList();
-    if (dates.isEmpty) return null;
-    dates.sort();
-    return dates.first;
-  }
+
+    DateTime? _getStartDatum(Map<String, DayEntry> dateMap) {
+      final dates = dateMap.keys
+          .map((k) => DateTime.tryParse(k))
+          .whereType<DateTime>()
+          .toList();
+      if (dates.isEmpty) return null;
+      dates.sort();
+      return dates.first;
+    }
 
 
 
   /* ---------- Titel bearbeiten ---------- */
-  void _bearbeiteTitel() {
-    final controller = TextEditingController(text: _title);
+    void _bearbeiteTitel() {
+      final controller = TextEditingController(text: _title);
 
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Titel bearbeiten'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text('Abbrechen')),
-          ElevatedButton(
-            onPressed: () {
-              setState(() => _title = controller.text.trim().isEmpty ? _title : controller.text.trim());
-              _speichereAktuellenEintrag();   // Änderung speichern
-              Navigator.pop(context);
-            },
-            child: Text('Speichern'),
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Titel bearbeiten'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
           ),
-        ],
-      ),
-    );
-  }
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Abbrechen')),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  final t = controller.text.trim();
+                  if (t.isNotEmpty) _title = t;
+                });
+                Navigator.pop(context);
+              },
+              child: const Text('Speichern'),
+            ),
+          ],
+        ),
+      );
+    }
 
   /* ---------- Bild aus Galerie hinzufügen ---------- */
   Future<void> _bildHinzufuegen() async {
-    final List<XFile> picked =
-      await ImagePicker().pickMultiImage();   // <– statt pickImage
+      final List<XFile> picked =
+        await ImagePicker().pickMultiImage();   // <– statt pickImage
 
-    if (picked.isNotEmpty) {
-    setState(() {
-      _bilder.addAll(picked.map((x) => File(x.path)));  // alle Pfade übernehmen
-    });
-    _speichereAktuellenEintrag();  // falls du direkt nach Picker speichern willst
-  }
-}
-
-  void _speichereAktuellenEintrag() {
-    final dateKey = '${widget.selectedDate.year}-${widget.selectedDate.month.toString().padLeft(2,'0')}-${widget.selectedDate.day.toString().padLeft(2,'0')}';
-
-    final entry = DayEntry(
-      kategorie: widget.kategorie,
-      event: widget.eventName,
-      datum: dateKey,
-      title: _title,
-      note: _noteCtrl.text,
-      imagePaths: _bilder.map((f) => f.path).toList(),
-    );
-
-  
-    final bool hasContent = _title.trim().isNotEmpty || _noteCtrl.text.trim().isNotEmpty || _bilder.isNotEmpty;
-    if (hasContent) {
-      DayRepo().saveEntry(widget.kategorie, widget.eventName, dateKey, entry);
-    } else {
-      DayRepo().deleteEntry(widget.kategorie, widget.eventName, dateKey);
+      if (picked.isNotEmpty) {
+      setState(() {
+        _bilder.addAll(picked.map((x) => File(x.path)));  // alle Pfade übernehmen
+      });
     }
   }
 
@@ -134,7 +116,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       appBar: AppBar(
         title: GestureDetector(
           onTap: _bearbeiteTitel,          // Klick → Titel editieren
-          child: Text(_title),
+           child: Text(_title.isNotEmpty ? _title : 'Neuer Eintrag'),  // Default EventName nur optisch
         ),
         centerTitle: true,
         actions: [
@@ -181,34 +163,30 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
                       mainAxisSpacing: 4,
                     ),
                     itemCount: _bilder.length,
-                    itemBuilder: (context, i) => Stack(                           // 1. Stack als Container für Bild + Icon
-                    children: [
-                      Image.file(_bilder[i], fit: BoxFit.cover),                // 2. Bild anzeigen
-                      Positioned(                                               // 3. Minus-Icon oben rechts positionieren
-                        top: 4,
-                        right: 4,
-                        child: GestureDetector(
-                          onTap: () {
-                            // final removedPath = _bilder[i].path;      // Pfad merken
-                            setState(() => _bilder.removeAt(i));      // aus UI‑Liste raus
-                            // DayRepo().deleteImage(                    // auch im RAM‑Repo löschen
-                            //   widget.kategorie,
-                            //   widget.eventName,
-                            //   _dateKey,                               // YYYY‑MM‑DD
-                            //   removedPath,
-                            // );
-                          },
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              shape: BoxShape.circle,
+                    itemBuilder: (context, i) => Stack(
+                      children: [
+                        Image.file(_bilder[i], fit: BoxFit.cover),
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _bilder.removeAt(i); // Nur lokal löschen
+                              });
+                            },
+                            child: Container(
+                              decoration: const BoxDecoration(
+                                color: Colors.black54,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.remove, color: Colors.white, size: 20),
                             ),
-                            child: Icon(Icons.remove, color: Colors.white, size: 20),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+
                 ),
           ),
           Divider(height: 1),
@@ -240,7 +218,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
         child: ElevatedButton(
           onPressed: () {
             final bool hasContent =
-                 _title.trim().isNotEmpty || _noteCtrl.text.trim().isNotEmpty || _bilder.isNotEmpty;
+                _noteCtrl.text.trim().isNotEmpty || _bilder.isNotEmpty;
 
             if (hasContent) {
               // speichern

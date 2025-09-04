@@ -86,22 +86,26 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final katMap = DayRepo().allEntries[widget.kategorie];
     if (katMap == null) return [];
 
-    final dateKey = _keyFmt.format(date);           // <-- Umwandlung!
+    final dateKey = _keyFmt.format(date); 
     final List<DayEntry> result = [];
 
     katMap.forEach((event, dateMap) {
-      if (event == widget.eventName) return;        // aktuelles Event überspringen
-      final entry = dateMap[dateKey];               // jetzt passt der Key wieder
-      if (entry != null && entry.title.isNotEmpty) result.add(entry);
+      if (event == widget.eventName) return; // aktuelles Event überspringen
+
+      final entry = dateMap[dateKey];
+      if (entry == null) return;
+
+      if (entry.title.isNotEmpty || entry.note.isNotEmpty || entry.imagePaths.isNotEmpty) {
+        result.add(entry);
+      }
     });
+
     return result;
   }
+
   List<DayEntry> _getAndereEventsVorjahreImMonat(DateTime viewDate) {
     final katMap = DayRepo().allEntries[widget.kategorie];
-    if (katMap == null) {
-      debugPrint('⚠️  Keine Einträge für Kategorie ${widget.kategorie}');
-      return [];
-    }
+    if (katMap == null) return [];
 
     final int ansichtsJahr = viewDate.year;
     final int systemJahr = DateTime.now().year;
@@ -111,33 +115,27 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final List<DayEntry> result = [];
 
     katMap.forEach((event, dateMap) {
-      if (event == widget.eventName) return; // eigenes Event auslassen
-      debugPrint('🔍 Prüfe Event "$event"');
+      if (event == widget.eventName) return;
 
       dateMap.forEach((key, entry) {
-        if (key.length != 10) return; // Format prüfen, kann man optional lassen
+        // Nur valide YYYY-MM-DD Strings
+        final date = DateTime.tryParse(key);
+        if (date == null) return;
 
-        DateTime? date;
-        try {
-          date = DateTime.parse(key);
-        } catch (e) {
-          return; // Ungültiges Datum überspringen
-        }
+        // Filter für Monat/Tag & Vorjahr
+        if (date.month != monat || date.day != tag) return;
+        if (date.year >= ansichtsJahr || date.year > systemJahr) return;
 
-        if (date.month != monat) return; // falscher Monat
-        if (date.day != tag) return;     // falscher Tag
+        // Nur Einträge mit Inhalt
+        if (entry.title.isEmpty && entry.note.isEmpty && entry.imagePaths.isEmpty) return;
 
-        if (date.year == ansichtsJahr) return; // gleiches Jahr raus
-        if (date.year > systemJahr) return;    // Zukunft raus
-
-        debugPrint('    ✔︎ Gefunden: year=${date.year}, entry=${entry.title}');
-        if (entry.title.isNotEmpty) result.add(entry);
+        result.add(entry);
       });
     });
 
-    debugPrint('➡️  result.length = ${result.length}');
     return result;
   }
+
 
     DateTime? _getStartDatum(Map<String, DayEntry> dateMap) {
       if (dateMap.isEmpty) return null;
@@ -152,82 +150,70 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
     DateTime _stripTime(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
 
+  List<DayEntry> _getAndereEventsRelativeTage(DateTime date) {
+  final katMap = DayRepo().allEntries[widget.kategorie];
+  if (katMap == null) return [];
+  final currentEventMap = katMap[widget.eventName];
+  if (currentEventMap == null) return [];
 
- List<DayEntry> _getAndereEventsRelativeTage(DateTime date) {
-    final katMap = DayRepo().allEntries[widget.kategorie];
-    if (katMap == null) return [];
+  final startDatumAktuell = _getStartDatum(currentEventMap);
+  if (startDatumAktuell == null) return [];
 
-    final currentEventMap = katMap[widget.eventName];
-    if (currentEventMap == null) return [];
+  final relativerTag = _stripTime(date).difference(_stripTime(startDatumAktuell)).inDays;
+  if (relativerTag < 0) return [];
 
-    // Startdatum des aktuellen Events
-    final startDatumAktuell = _getStartDatum(currentEventMap);
-    if (startDatumAktuell == null) return [];
+  final List<DayEntry> result = [];
+  katMap.forEach((event, dateMap) {
+    if (event == widget.eventName) return;
 
-    final relativerTag = _stripTime(date).difference(_stripTime(startDatumAktuell)).inDays;
+    final startDatum = _getStartDatum(dateMap);
+    if (startDatum == null) return;
 
-    if (relativerTag < 0) return []; // <--- Nur ab Tag 0!
+    final zielDatum = startDatum.add(Duration(days: relativerTag));
+    final entry = dateMap[_dateKey(zielDatum)];
+    if (entry == null) return;
 
-    final List<DayEntry> result = [];
+    if (entry.title.isNotEmpty || entry.note.isNotEmpty || entry.imagePaths.isNotEmpty) {
+      result.add(entry);
+    }
+  });
 
-    katMap.forEach((event, dateMap) {
-      if (event == widget.eventName) return; // aktuelles Event überspringen
-      final startDatum = _getStartDatum(dateMap);
-      if (startDatum == null) return;
+  return result;
+}
 
-      final zielDatum = startDatum.add(Duration(days: relativerTag));
-      final key = _dateKey(zielDatum);
-      final entry = dateMap[key];
-      if (entry != null && entry.title.isNotEmpty) result.add(entry);
-    });
-
-    return result;
-  }
 
 
 
   Widget _buildDayCell(DateTime date, bool isToday) {
+  final dateKey = _dateKey(date);
+  final current = DayRepo().getEntry(widget.kategorie, widget.eventName, dateKey);
+  final andere = _getAndereEventEintraege(date);
 
-    
-
-    final dateKey = _dateKey(date);
-
-    final current = DayRepo().getEntry(widget.kategorie, widget.eventName, dateKey);
-
-    final andere = _getAndereEventEintraege(date);
-
-    
-
-    return Container(
-      width: double.infinity,
-      margin: EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade400, width: 0.6),
-        borderRadius: BorderRadius.circular(6),
-        color: isToday ? Colors.green.shade100 : null,
+  return Container(
+    width: double.infinity,
+    margin: EdgeInsets.all(2),
+    decoration: BoxDecoration(
+      border: Border.all(color: Colors.grey.shade400, width: 0.6),
+      borderRadius: BorderRadius.circular(6),
+      color: isToday ? Colors.green.shade100 : null,
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(4.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('${date.day}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          if (current != null && (current.title.isNotEmpty || current.note.isNotEmpty || current.imagePaths.isNotEmpty))
+            _badge(current.title.isNotEmpty ? current.title : '', Colors.green.shade400, Colors.white),
+          for (final e in andere)
+            if (e.title.isNotEmpty || e.note.isNotEmpty || e.imagePaths.isNotEmpty)
+              _badge(e.title, Colors.green.shade200, Colors.black87),
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(4.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('${date.day}',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+    ),
+  );
+}
 
-            // Aktueller Event – kräftige Farbe
-            if (current != null && current.title.isNotEmpty)
-              _badge(current.title, Colors.green.shade400, Colors.white),
-
-            // Andere Events – blassere Farbe
-            //if (_currentViewMode == CalendarViewMode.aktuelleAnsicht)...[
-              for (final e in andere)
-                _badge(e.title, Colors.green.shade200, Colors.black87),
-            ]
-          //],
-        ),
-      ),
-    );
-  }
 
   // kleines Hilfs‑Widget für Badges
   Widget _badge(String text, Color bg, Color fg) => Container(
