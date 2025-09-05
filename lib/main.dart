@@ -304,7 +304,7 @@ class _EventListeScreenState extends State<EventListeScreen> {
     // Differenz inkl. beider Tage → +1
     return last.difference(first).inDays + 1;
   }
-
+  
 
   /* ---------- Popup‑Menü (Plus‑Button) ---------- */
   void _showMenu() async {

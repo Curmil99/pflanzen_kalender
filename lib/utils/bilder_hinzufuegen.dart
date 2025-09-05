@@ -1,13 +1,25 @@
-// lib/helpers/bilder_hinzufuegen.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/day_entry.dart';
-import '../repositories/day_repo.dart'; 
+import '../repositories/day_repo.dart';
 import 'package:exif/exif.dart';
-
+import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/services.dart';
 
+Future<bool> ensureStoragePermission(BuildContext context) async {
+  if (await Permission.photos.isGranted || await Permission.storage.isGranted) {
+    return true;
+  }
+  final photosStatus = await Permission.photos.request();
+  final storageStatus = await Permission.storage.request();
+  if (photosStatus.isGranted || storageStatus.isGranted) return true;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text("Zugriff auf Fotos wird benötigt.")),
+  );
+  return false;
+}
 
 Future<DateTime?> getExifDate(File file) async {
   try {
@@ -26,20 +38,23 @@ class NativeDateHelper {
 
   static Future<DateTime?> getImageTakenDate(String path) async {
     try {
-      final int? millis = await _channel.invokeMethod('getImageTakenDate', {'path': path});
-      if (millis != null) return DateTime.fromMillisecondsSinceEpoch(millis);
+      final result = await _channel.invokeMethod('getImageDate', {'path': path});
+      final int timestamp = result['timestamp'];
+      return DateTime.fromMillisecondsSinceEpoch(timestamp);
+    } catch (_) {
       return null;
-    } catch (e) {
-      print('NativeDateHelper error: $e');
+    }
+  }
+
+  static Future<String?> findOriginalPath(String cachePath) async {
+    try {
+      final result = await _channel.invokeMethod('findOriginalPath', {'path': cachePath});
+      return result;
+    } catch (_) {
       return null;
     }
   }
 }
-
-
-// lib/helpers/bilder_hinzufuegen.dart
-
-// Falls du getExifDate() hast
 
 class BilderHelper {
   static Future<void> addBilderZuEvent({
@@ -47,54 +62,50 @@ class BilderHelper {
     required String kategorie,
     required String eventName,
   }) async {
-    final List<XFile>? picked = await ImagePicker().pickMultiImage();
-    if (picked == null || picked.isEmpty) return;
+    if (!await ensureStoragePermission(context)) return;
 
-    for (var xfile in picked) {
-      final file = File(xfile.path);
+    final List<XFile>? images = await ImagePicker().pickMultiImage();
+    if (images == null || images.isEmpty) return;
 
-      // --- 1. EXIF versuchen ---
-      DateTime? takenDate = await getExifDate(file);
+    for (var image in images) {
+      final file = File(image.path);
+      File targetFile = file;
 
-      // --- 2. Native Android fallback ---
-      takenDate ??= await NativeDateHelper.getImageTakenDate(file.path);
+      // Originalpfad prüfen
+      final originalPath = await NativeDateHelper.findOriginalPath(file.path);
+      if (originalPath != null) targetFile = File(originalPath);
 
-      // --- 3. Letzter Fallback ---
-      takenDate ??= await file.lastModified();
+      // Datum bestimmen: EXIF → Native → Fallback
+      DateTime? takenDate = await getExifDate(targetFile);
+      takenDate ??= await NativeDateHelper.getImageTakenDate(targetFile.path);
+      takenDate ??= await targetFile.lastModified();
 
       final dateKey =
           '${takenDate.year}-${takenDate.month.toString().padLeft(2, '0')}-${takenDate.day.toString().padLeft(2, '0')}';
 
-      // Bestehenden Eintrag prüfen
       final existingEntry = DayRepo().getEntry(kategorie, eventName, dateKey);
       final updatedImages = List<String>.from(existingEntry?.imagePaths ?? []);
-      updatedImages.add(file.path);
+      updatedImages.add(targetFile.path);
 
+      final formattedDate =
+          '${takenDate.day.toString().padLeft(2, '0')}.'
+          '${takenDate.month.toString().padLeft(2, '0')}.'
+          '${takenDate.year}';
 
-      final formattedDate  =
-        '${takenDate.day.toString().padLeft(2,'0')}.'
-        '${takenDate.month.toString().padLeft(2,'0')}.'
-        '${takenDate.year}';
-
-      // Tag-Eintrag erstellen/aktualisieren
       final entry = DayEntry(
         kategorie: kategorie,
         event: eventName,
         datum: dateKey,
-        title: (existingEntry != null && existingEntry.title.isNotEmpty) 
-            ? existingEntry.title 
-            : formattedDate ,   // Dummy-Titel = Datum
+        title: existingEntry?.title.isNotEmpty == true ? existingEntry!.title : formattedDate,
         note: existingEntry?.note ?? '',
         imagePaths: updatedImages,
       );
 
-
       DayRepo().saveEntry(kategorie, eventName, dateKey, entry);
     }
 
-    // Widget aktualisieren
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${picked.length} Bilder hinzugefügt.')),
+      SnackBar(content: Text('${images.length} Bilder hinzugefügt.')),
     );
   }
 }
