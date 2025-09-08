@@ -35,6 +35,37 @@ class VergleichsAnsicht extends StatefulWidget {
   State<VergleichsAnsicht> createState() => VergleichsAnsichtState();
 }
 
+
+/// Hilfsfunktion: Abstand zwischen zwei Daten nur nach Tag+Monat, Jahr wird ignoriert
+int _dayMonthDiff(DateTime a, DateTime b) {
+  final dayOfYearA = DateTime(a.year, a.month, a.day).difference(DateTime(a.year, 1, 1)).inDays;
+  final dayOfYearB = DateTime(b.year, b.month, b.day).difference(DateTime(b.year, 1, 1)).inDays;
+
+  int diff = (dayOfYearA - dayOfYearB).abs();
+
+  // Weil das Jahr zyklisch ist, den kürzeren Weg nehmen (z. B. 30.12 ↔ 02.01 = 3 Tage, nicht 363)
+  return diff > 182 ? 365 - diff : diff;
+}
+
+/// Sucht das Datum in dateMap, das im Jahreskreis am nächsten zu target liegt (Jahr ignoriert)
+DayEntry? _findClosestEntryByDayMonth(Map<String, DayEntry> dateMap, DateTime target) {
+  DayEntry? closest;
+  int minDiff = 9999;
+
+  dateMap.forEach((key, entry) {
+    final d = DateTime.tryParse(key);
+    if (d == null) return;
+    final diff = _dayMonthDiff(d, target);
+    if (diff < minDiff) {
+      closest = entry;
+      minDiff = diff;
+    }
+  });
+
+  return closest;
+}
+
+
 // Diese Funktion sucht den Eintrag, der dem Ziel-Datum am nächsten ist
 DayEntry? _findClosestEntry(Map<String, DayEntry> dateMap, DateTime target) {
   DayEntry? closest;
@@ -117,7 +148,7 @@ class VergleichsAnsichtState extends State<VergleichsAnsicht> {
       } else {
         // datum-Modus: wähle den Eintrag, der dem gleichen Kalendertag wie aktuelles Event entspricht
         DateTime target = zielDatumAktuell;
-        closestEntry = _findClosestEntry(dateMap, target);
+        closestEntry = _findClosestEntryByDayMonth(dateMap, target);
 
         if (closestEntry != null) {
           final entryDatum = DateTime.tryParse(closestEntry.datum);
