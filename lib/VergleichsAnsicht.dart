@@ -391,7 +391,7 @@ class VergleichsAnsichtState extends State<VergleichsAnsicht> {
     DateTime? entryDate = DateTime.tryParse(eintrag.eintrag.datum);
     int idx = 0;
     if (entryDate != null) {
-      final found = dates.indexWhere((d) => _isSameDay(d, entryDate!));
+      final found = dates.indexWhere((d) => _isSameDay(d, entryDate));
       idx = found == -1 ? _findClosestIndex(dates, entryDate) : found;
     }
 

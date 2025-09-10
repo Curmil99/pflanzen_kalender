@@ -282,10 +282,39 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           focusedDay: _focusedDay,
           calendarFormat: CalendarFormat.month,
           rowHeight: 80,
-          headerStyle: HeaderStyle(formatButtonVisible: false, titleCentered: true),
+          headerVisible: true,
+          headerStyle: HeaderStyle(
+            formatButtonVisible: false,
+            titleCentered: true,
+            titleTextFormatter: (date, locale) =>
+                '${DateFormat.MMMM(locale).format(date)} ${date.year}',
+          ),
           calendarBuilders: CalendarBuilders(
             defaultBuilder: (c, d, _) => _buildDayCell(d, false),
-            todayBuilder:   (c, d, _) => _buildDayCell(d, true),
+            todayBuilder: (c, d, _) => _buildDayCell(d, true),
+            headerTitleBuilder: (context, date) {
+              return GestureDetector(
+                onTap: () async {
+                  final pickedDate = await showDatePicker(
+                    context: context,
+                    initialDate: _focusedDay,
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime(2100),
+                  );
+                  if (pickedDate != null) {
+                    setState(() {
+                      _focusedDay = pickedDate;
+                    });
+                  }
+                },
+                child: Center(
+                  child: Text(
+                    '${DateFormat.MMMM().format(date)} ${date.year}',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              );
+            },
           ),
           onPageChanged: (day) => setState(() => _focusedDay = day),
           onDaySelected: (selectedDay, _) async {
