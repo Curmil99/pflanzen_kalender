@@ -17,109 +17,149 @@ class DirektVergleichAnsicht extends StatefulWidget {
 }
 
 class _DirektVergleichAnsichtState extends State<DirektVergleichAnsicht> {
-  late PageController _aktuellerPageController;
-  late PageController _vergleichPageController;
+  late PageController _topPageController;
+  late PageController _bottomPageController; // <-- hier
+  int _topImageIndex = 0;
+  int _bottomImageIndex = 0;
 
-  int _aktuellerImageIndex = 0;
-  int _vergleichImageIndex = 0;
-  int _currentIndex = 0;
+  late Vergleichseintrag _topEntry;
+  late Vergleichseintrag _bottomEntry;
 
   @override
   void initState() {
     super.initState();
-    _aktuellerPageController = PageController();
-    _vergleichPageController = PageController();
+    _topEntry = widget.aktuellerEintrag;
+    _bottomEntry = widget.vergleichsEintraege.first;
+
+    _topPageController = PageController();
+    _bottomPageController = PageController(); // <-- hier
   }
 
   @override
   void dispose() {
-    _aktuellerPageController.dispose();
-    _vergleichPageController.dispose();
+    _topPageController.dispose();
+    _bottomPageController.dispose(); // <-- hier
     super.dispose();
   }
 
-    Widget _buildNavigationButtons({
-      required VoidCallback onPrevious,
-      required VoidCallback onNext,
-    }) {
-      return Positioned.fill(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // Linker Button
-            GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: onPrevious,
-              child: Container(
-                width: 50,
-                color: Colors.black26,
-                child: Icon(Icons.arrow_left, color: Colors.white, size: 40),
-              ),
-            ),
 
-            // Rechter Button
-            GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: onNext,
-              child: Container(
-                width: 50,
-                color: Colors.black26,
-                child: Icon(Icons.arrow_right, color: Colors.white, size: 40),
-              ),
+  Widget _buildNavigationButtons({
+    required VoidCallback onPrevious,
+    required VoidCallback onNext,
+  }) {
+    return Positioned.fill(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: onPrevious,
+            child: Container(
+              width: 50,
+              color: Colors.black26,
+              child: Icon(Icons.arrow_left, color: Colors.white, size: 40),
             ),
-          ],
-        ),
-      );
-    }
-
+          ),
+          GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: onNext,
+            child: Container(
+              width: 50,
+              color: Colors.black26,
+              child: Icon(Icons.arrow_right, color: Colors.white, size: 40),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
+  @override
   Widget build(BuildContext context) {
-    final Vergleichseintrag vergleichsEintrag = widget.vergleichsEintraege[_currentIndex];
-
+    final alleEintraege = [widget.aktuellerEintrag, ...widget.vergleichsEintraege];
+    
     return Scaffold(
       appBar: AppBar(title: Text('Direkter Vergleich')),
       body: Column(
         children: [
-          // Oberes Bild
+          // Oberes Bild + Dropdown
           Expanded(
-            child: Stack(
+            child: Column(
               children: [
-                PageView.builder(
-                  controller: _aktuellerPageController,
-                  itemCount: widget.aktuellerEintrag.eintrag.imagePaths.length,
-                  onPageChanged: (index) {
-                    setState(() => _aktuellerImageIndex = index);
-                  },
-                  itemBuilder: (context, index) {
-                    return InteractiveViewer(
-                      panEnabled: true,
-                      minScale: 1.0,
-                      maxScale: 4.0,
-                      child: Image.file(
-                        File(widget.aktuellerEintrag.eintrag.imagePaths[index]),
-                        fit: BoxFit.contain,
+                // Oberes Dropdown
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Center(
+                    child: SizedBox(
+                      width: 200,
+                      child: DropdownButton<Vergleichseintrag>(
+                        value: _topEntry,
+                        isExpanded: true,
+                        items: alleEintraege.map((e) {
+                          String label = e.eventName;
+                          if (e == _bottomEntry) label += " (unten)";
+                          return DropdownMenuItem(
+                            value: e,
+                            child: Text(label),
+                          );
+                        }).toList(),
+                        onChanged: (Vergleichseintrag? newEntry) {
+                          if (newEntry != null) {
+                            setState(() {
+                              _topEntry = newEntry;
+                              _topImageIndex = 0;
+                              _topPageController.jumpToPage(0);
+                            });
+                          }
+                        },
                       ),
-                    );
-                  },
+                  ),
                 ),
-                _buildNavigationButtons(
-                  onPrevious: () {
-                    if (_aktuellerImageIndex > 0) {
-                      _aktuellerPageController.previousPage(
-                        duration: Duration(milliseconds: 300),
-                        curve: Curves.easeInOut,
-                      );
-                    }
-                  },
-                  onNext: () {
-                    if (_aktuellerImageIndex < widget.aktuellerEintrag.eintrag.imagePaths.length - 1) {
-                      _aktuellerPageController.nextPage(
-                        duration: Duration(milliseconds: 300),
-                        curve: Curves.easeInOut,
-                      );
-                    }
-                  },
+                ),
+
+                // PageView oben
+                Expanded(
+                  child: Stack(
+                    children: [
+                      PageView.builder(
+                        controller: _topPageController,
+                        itemCount: _topEntry.eintrag.imagePaths.length,
+                        onPageChanged: (index) {
+                          setState(() => _topImageIndex = index);
+                        },
+                        itemBuilder: (context, index) {
+                          return InteractiveViewer(
+                            panEnabled: true,
+                            minScale: 1.0,
+                            maxScale: 4.0,
+                            child: Image.file(
+                              File(_topEntry.eintrag.imagePaths[index]),
+                              fit: BoxFit.contain,
+                            ),
+                          );
+                        },
+                      ),
+                      _buildNavigationButtons(
+                        onPrevious: () {
+                          if (_topImageIndex > 0) {
+                            _topPageController.previousPage(
+                              duration: Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                            );
+                          }
+                        },
+                        onNext: () {
+                          if (_topImageIndex < _topEntry.eintrag.imagePaths.length - 1) {
+                            _topPageController.nextPage(
+                              duration: Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                            );
+                          }
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -127,88 +167,90 @@ class _DirektVergleichAnsichtState extends State<DirektVergleichAnsicht> {
 
           Divider(thickness: 2),
 
-          // Unteres Bild
+          // Unteres Bild + Dropdown
           Expanded(
-            child: Stack(
+            child: Column(
               children: [
-                PageView.builder(
-                  controller: _vergleichPageController,
-                  itemCount: vergleichsEintrag.eintrag.imagePaths.length,
-                  onPageChanged: (index) {
-                    setState(() => _vergleichImageIndex = index);
-                  },
-                  itemBuilder: (context, index) {
-                    return InteractiveViewer(
-                      panEnabled: true,
-                      minScale: 1.0,
-                      maxScale: 4.0,
-                      child: Image.file(
-                        File(vergleichsEintrag.eintrag.imagePaths[index]),
-                        fit: BoxFit.contain,
+                // Unteres Dropdown
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Center(
+                    child: SizedBox(
+                      width: 200,
+                      child: DropdownButton<Vergleichseintrag>(
+                        value: _bottomEntry,
+                        isExpanded: true,
+                        items: alleEintraege.map((e) {
+                          String label = e.eventName;
+                          if (e == _topEntry) label += " (oben)";
+                          return DropdownMenuItem(
+                            value: e,
+                            child: Text(label),
+                          );
+                        }).toList(),
+                        onChanged: (Vergleichseintrag? newEntry) {
+                          if (newEntry != null) {
+                            setState(() {
+                              _bottomEntry = newEntry;
+                              _bottomImageIndex = 0;
+                              _bottomPageController.jumpToPage(0);
+                            });
+                          }
+                        },
                       ),
-                    );
-                  },
+                    ),
+                  ),
                 ),
-                _buildNavigationButtons(
-                  onPrevious: () {
-                    if (_vergleichImageIndex > 0) {
-                      _vergleichPageController.previousPage(
-                        duration: Duration(milliseconds: 300),
-                        curve: Curves.easeInOut,
-                      );
-                    }
-                  },
-                  onNext: () {
-                    if (_vergleichImageIndex < vergleichsEintrag.eintrag.imagePaths.length - 1) {
-                      _vergleichPageController.nextPage(
-                        duration: Duration(milliseconds: 300),
-                        curve: Curves.easeInOut,
-                      );
-                    }
-                  },
+
+                // PageView unten
+                Expanded(
+                  child: Stack(
+                    children: [
+                      PageView.builder(
+                        controller: _bottomPageController,
+                        itemCount: _bottomEntry.eintrag.imagePaths.length,
+                        onPageChanged: (index) {
+                          setState(() => _bottomImageIndex = index);
+                        },
+                        itemBuilder: (context, index) {
+                          return InteractiveViewer(
+                            panEnabled: true,
+                            minScale: 1.0,
+                            maxScale: 4.0,
+                            child: Image.file(
+                              File(_bottomEntry.eintrag.imagePaths[index]),
+                              fit: BoxFit.contain,
+                            ),
+                          );
+                        },
+                      ),
+                      _buildNavigationButtons(
+                        onPrevious: () {
+                          if (_bottomImageIndex > 0) {
+                            _bottomPageController.previousPage(
+                              duration: Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                            );
+                          }
+                        },
+                        onNext: () {
+                          if (_bottomImageIndex < _bottomEntry.eintrag.imagePaths.length - 1) {
+                            _bottomPageController.nextPage(
+                              duration: Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                            );
+                          }
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-
-          // Button zum Wechseln des Vergleichseintrags (Jahr)
-          if (widget.vergleichsEintraege.length > 1)
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (_currentIndex > 0)
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _currentIndex--;
-                          _vergleichImageIndex = 0;
-                          _vergleichPageController.jumpToPage(0);
-                        });
-                      },
-                      icon: Icon(Icons.arrow_left),
-                      label: Text(widget.vergleichsEintraege[_currentIndex - 1].eventName),
-                    ),
-                  const SizedBox(width: 16),
-                  if (_currentIndex < widget.vergleichsEintraege.length - 1)
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _currentIndex++;
-                          _vergleichImageIndex = 0;
-                          _vergleichPageController.jumpToPage(0);
-                        });
-                      },
-                      icon: Icon(Icons.arrow_right),
-                      label: Text(widget.vergleichsEintraege[_currentIndex + 1].eventName),
-                    ),
-                ],
-              ),
-            )
-
         ],
       ),
     );
   }
+
 }
