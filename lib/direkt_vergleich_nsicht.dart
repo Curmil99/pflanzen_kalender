@@ -42,38 +42,6 @@ class _DirektVergleichAnsichtState extends State<DirektVergleichAnsicht> {
     super.dispose();
   }
 
-
-  Widget _buildNavigationButtons({
-    required VoidCallback onPrevious,
-    required VoidCallback onNext,
-  }) {
-    return Positioned.fill(
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTap: onPrevious,
-            child: Container(
-              width: 50,
-              color: Colors.black26,
-              child: Icon(Icons.arrow_left, color: Colors.white, size: 40),
-            ),
-          ),
-          GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTap: onNext,
-            child: Container(
-              width: 50,
-              color: Colors.black26,
-              child: Icon(Icons.arrow_right, color: Colors.white, size: 40),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   @override
   Widget build(BuildContext context) {
@@ -140,24 +108,39 @@ class _DirektVergleichAnsichtState extends State<DirektVergleichAnsicht> {
                           );
                         },
                       ),
-                      _buildNavigationButtons(
-                        onPrevious: () {
-                          if (_topImageIndex > 0) {
-                            _topPageController.previousPage(
-                              duration: Duration(milliseconds: 300),
-                              curve: Curves.easeInOut,
-                            );
-                          }
-                        },
-                        onNext: () {
-                          if (_topImageIndex < _topEntry.eintrag.imagePaths.length - 1) {
-                            _topPageController.nextPage(
-                              duration: Duration(milliseconds: 300),
-                              curve: Curves.easeInOut,
-                            );
-                          }
-                        },
-                      ),
+                      if (_topImageIndex > 0)
+                        Positioned(
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          child: GestureDetector(
+                            onTap: () {
+                              _topPageController.previousPage(duration: Duration(milliseconds: 300), curve: Curves.easeInOut);
+                            },
+                            child: Container(
+                              width: 50,
+                              color: Colors.black26,
+                              child: Icon(Icons.arrow_left, color: Colors.white, size: 40),
+                            ),
+                          ),
+                        ),
+                      // Rechter Pfeil nur sichtbar, wenn nicht letztes Bild
+                      if (_topImageIndex < _topEntry.eintrag.imagePaths.length - 1)
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          bottom: 0,
+                          child: GestureDetector(
+                            onTap: () {
+                              _topPageController.nextPage(duration: Duration(milliseconds: 300), curve: Curves.easeInOut);
+                            },
+                            child: Container(
+                              width: 50,
+                              color: Colors.black26,
+                              child: Icon(Icons.arrow_right, color: Colors.white, size: 40),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -224,24 +207,39 @@ class _DirektVergleichAnsichtState extends State<DirektVergleichAnsicht> {
                           );
                         },
                       ),
-                      _buildNavigationButtons(
-                        onPrevious: () {
-                          if (_bottomImageIndex > 0) {
-                            _bottomPageController.previousPage(
-                              duration: Duration(milliseconds: 300),
-                              curve: Curves.easeInOut,
-                            );
-                          }
-                        },
-                        onNext: () {
-                          if (_bottomImageIndex < _bottomEntry.eintrag.imagePaths.length - 1) {
-                            _bottomPageController.nextPage(
-                              duration: Duration(milliseconds: 300),
-                              curve: Curves.easeInOut,
-                            );
-                          }
-                        },
-                      ),
+                      if (_bottomImageIndex > 0)
+                        Positioned(
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          child: GestureDetector(
+                            onTap: () {
+                              _bottomPageController.previousPage(duration: Duration(milliseconds: 300), curve: Curves.easeInOut);
+                            },
+                            child: Container(
+                              width: 50,
+                              color: Colors.black26,
+                              child: Icon(Icons.arrow_left, color: Colors.white, size: 40),
+                            ),
+                          ),
+                        ),
+                      // Rechter Pfeil nur sichtbar, wenn nicht letztes Bild
+                      if (_bottomImageIndex < _topEntry.eintrag.imagePaths.length - 1)
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          bottom: 0,
+                          child: GestureDetector(
+                            onTap: () {
+                              _bottomPageController.nextPage(duration: Duration(milliseconds: 300), curve: Curves.easeInOut);
+                            },
+                            child: Container(
+                              width: 50,
+                              color: Colors.black26,
+                              child: Icon(Icons.arrow_right, color: Colors.white, size: 40),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
