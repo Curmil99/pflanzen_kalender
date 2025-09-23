@@ -1,75 +1,116 @@
-// lib/repositories/day_repo.dart
-// Singleton, das alle DayEntry-Objekte während der App-Laufzeit im RAM hält
+import 'package:isar/isar.dart';
 import '../models/day_entry.dart';
+import 'package:path_provider/path_provider.dart';
 
 class DayRepo {
   static final DayRepo _instance = DayRepo._internal();
-
-  factory DayRepo() {
-    return _instance;
-  }
-
+  factory DayRepo() => _instance;
   DayRepo._internal();
 
-  final Map<String, Map<String, Map<String, DayEntry>>> _storage = {};
-  // _storage[kategorie][event][datum] = DayEntry
+  late final Isar _isar;
 
-  DayEntry? getEntry(String kategorie, String event, String datum) {
-    return _storage[kategorie]?[event]?[datum];
+  /// Muss vor Nutzung einmal aufgerufen werden
+  Future<void> init() async {
+    final dir = await getApplicationDocumentsDirectory();
+    _isar = await Isar.open(
+      [DayEntrySchema],
+      directory: dir.path,
+    );
   }
 
-  void saveEntry(String kategorie, String event, String datum, DayEntry entry) {
-    _storage.putIfAbsent(kategorie, () => {});
-    _storage[kategorie]!.putIfAbsent(event, () => {});
-    _storage[kategorie]![event]![datum] = entry;
+  // ---------- CRUD ----------
+
+  Future<void> saveEntry(DayEntry entry) async {
+    await _isar.writeTxn(() async {
+      await _isar.dayEntrys.put(entry);
+    });
   }
 
-  void deleteEntry(String kat, String event, String datum) {
-    _storage[kat]?[event]?.remove(datum);
-    if (_storage[kat]?[event]?.isEmpty ?? false) {
-      _storage[kat]?.remove(event);
-    }
+  Future<DayEntry?> getEntry(String kategorie, String event, String datum) async {
+    return await _isar.dayEntrys
+        .filter()
+        .kategorieEqualTo(kategorie)
+        .eventEqualTo(event)
+        .datumEqualTo(datum)
+        .findFirst();
   }
 
-  void deleteImage(String kategorie, String event, String datum, String imagePath) {
-    final entry = _storage[kategorie]?[event]?[datum];
+  Future<void> deleteEntry(String kategorie, String event, String datum) async {
+    final entry = await getEntry(kategorie, event, datum);
+    if (entry == null) return;
+    await _isar.writeTxn(() async {
+      await _isar.dayEntrys.delete(entry.id);
+    });
+  }
+
+  Future<void> deleteImage(String kategorie, String event, String datum, String imagePath) async {
+    final entry = await getEntry(kategorie, event, datum);
     if (entry == null) return;
 
     entry.imagePaths.remove(imagePath);
-     // Prüfen, ob noch Inhalt da ist
+
     final hasNote = entry.note.trim().isNotEmpty;
-    if (entry.imagePaths.isEmpty && !hasNote) {
-      deleteEntry(kategorie, event, datum);
+    final hasTitle = entry.title.trim().isNotEmpty;
+    final hasImages = entry.imagePaths.isNotEmpty;
+
+    await _isar.writeTxn(() async {
+      if (!hasTitle && !hasNote && !hasImages) {
+        await _isar.dayEntrys.delete(entry.id);
+      } else {
+        await _isar.dayEntrys.put(entry);
+      }
+    });
   }
 
-  // Kalender aktualisieren
-  // setState muss in der Widget-Klasse aufgerufen werden, nicht hier
-}
-
-  void updateNote(String kategorie, String event, String datum, String note) {
-    final entry = _storage[kategorie]?[event]?[datum];
+  Future<void> updateNote(String kategorie, String event, String datum, String note) async {
+    final entry = await getEntry(kategorie, event, datum);
     if (entry == null) return;
 
     entry.note = note;
-    _cleanupEntryIfEmpty(kategorie, event, datum);
-  }
-
-  // Hilfsfunktion: löscht leeren Eintrag
-  void _cleanupEntryIfEmpty(String kategorie, String event, String datum) {
-    final entry = _storage[kategorie]?[event]?[datum];
-    if (entry == null) return;
 
     final hasTitle = entry.title.trim().isNotEmpty;
     final hasNote  = entry.note.trim().isNotEmpty;
     final hasImages = entry.imagePaths.isNotEmpty;
 
-    if (!hasTitle && !hasNote && !hasImages) {
-      deleteEntry(kategorie, event, datum);
+    await _isar.writeTxn(() async {
+      if (!hasTitle && !hasNote && !hasImages) {
+        await _isar.dayEntrys.delete(entry.id);
+      } else {
+        await _isar.dayEntrys.put(entry);
+      }
+    });
+  }
+
+ 
+
+  final Map<String, Map<String, DayEntry>> allEntries = {};
+
+  Future<void> deleteEvent(String kategorie, String eventName) async {
+    // Aus Cache löschen
+    final katMap = allEntries[kategorie];
+    if (katMap != null) {
+      katMap.remove(eventName);
     }
+
+    // Aus Datenbank löschen
+    await _isar.writeTxn(() async {
+      await _isar.dayEntrys
+          .filter()
+          .kategorieEqualTo(kategorie)
+          .eventEqualTo(eventName)
+          .deleteAll();
+    });
   }
 
 
 
-  // **Wiederhergestellter Getter, damit alte Dateien funktionieren**
-  Map<String, Map<String, Map<String, DayEntry>>> get allEntries => _storage;
+  // ---------- Streams ----------
+
+  Stream<List<DayEntry>> watchAll() => _isar.dayEntrys.where().watch(fireImmediately: true);
+
+  Stream<List<DayEntry>> watchByKategorie(String kategorie) =>
+      _isar.dayEntrys.filter().kategorieEqualTo(kategorie).watch(fireImmediately: true);
+
+  Stream<List<DayEntry>> watchEntries(String kategorie, String event) =>
+      _isar.dayEntrys.filter().kategorieEqualTo(kategorie).eventEqualTo(event).watch(fireImmediately: true);
 }

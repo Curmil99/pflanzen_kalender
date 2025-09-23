@@ -5,7 +5,10 @@ import '../repositories/day_repo.dart';
 import '../utils/bilder_hinzufuegen.dart'; // Import hinzufügen
 
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized(); // wichtig für async Init vor runApp
+  await DayRepo().init(); // Isar initialisieren
+
   runApp(PflanzenApp());
 }
 
@@ -278,13 +281,21 @@ class _EventListeScreenState extends State<EventListeScreen> {
             ),
             ElevatedButton(
               onPressed: auswahl.isEmpty
-                  ? null // deaktiviert, wenn nichts markiert
-                  : () {
+                  ? null
+                  : () async {
+                      // 1. Alle markierten Events aus der Datenbank löschen
+                      for (final ev in auswahl) {
+                        await DayRepo().deleteEvent(widget.kategorie, ev);
+                      }
+
+                      // 2. Auch lokal aus der Liste entfernen, damit UI aktualisiert wird
                       setState(() => _events.removeWhere(auswahl.contains));
+
                       Navigator.pop(context);
                     },
               child: Text('Löschen'),
             ),
+
           ],
         ),
       ),
@@ -292,12 +303,16 @@ class _EventListeScreenState extends State<EventListeScreen> {
   }
   /// Liefert die Zahl der Tage zwischen dem ersten und letzten Eintrag
 /// (inklusive beider Tage). Gibt 0 zurück, wenn gar kein Eintrag existiert.
-  int _spanInTagen(String event) {
-    final dateMap = DayRepo().allEntries[widget.kategorie]?[event];
-    if (dateMap == null || dateMap.isEmpty) return 0;
+  Future<int> _spanInTagen(String event) async {
+    final repo = DayRepo();
+
+    // Alle Einträge für die Kategorie + Event holen
+    final entries = await repo.watchEntries(widget.kategorie, event).first;
+
+    if (entries.isEmpty) return 0;
 
     // alle Datum‑Strings (YYYY‑MM‑DD) sortieren
-    final dates = dateMap.keys.toList()..sort();
+    final dates = entries.map((e) => e.datum).toList()..sort();
     final first = DateTime.parse(dates.first);
     final last  = DateTime.parse(dates.last);
 
@@ -332,70 +347,68 @@ class _EventListeScreenState extends State<EventListeScreen> {
         itemCount: _events.length,
         itemBuilder: (context, index) {
           final event = _events[index];
-          final span  = _spanInTagen(event);              // Tage‑Abstand berechnen
-          
-          return ListTile(
-            title: Text(event),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min, // wichtig, damit die Row nicht den ganzen Platz einnimmt
-              children: [
-                // Zahl (Tage)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: Text(
-                    '$span',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-                  ),
-                ),
-                // Neuer Button zum Bilder hinzufügen
-                IconButton(
-                  onPressed: () async {
-                    await BilderHelper.addBilderZuEvent(
-                      context: context,
-                      kategorie: widget.kategorie,
-                      eventName: event,
-                    );
-                    setState(() {}); // Aktualisiert die Ansicht
-                  },
-                  icon: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Icon(Icons.photo, size: 28),
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: Icon(Icons.add_circle, size: 14, color: Colors.greenAccent),
-                      ),
-                    ],
-                  ),
-                ),
 
-              ],
-            ),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => EventDetailScreen(
-                    kategorie: widget.kategorie,
-                    eventName: event,
-                  ),
+          return FutureBuilder<int>(
+            future: _spanInTagen(event),
+            builder: (context, snapshot) {
+              final span = snapshot.data ?? 0;
+
+              return ListTile(
+                title: Text(event),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: Text(
+                        '$span',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () async {
+                        await BilderHelper.addBilderZuEvent(
+                          context: context,
+                          kategorie: widget.kategorie,
+                          eventName: event,
+                        );
+                        setState(() {});
+                      },
+                      icon: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Icon(Icons.photo, size: 28),
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Icon(Icons.add_circle, size: 14, color: Colors.greenAccent),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ).then((modified) {
-                if (modified == true) {
-                  setState(() {});
-                }
-              });
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => EventDetailScreen(
+                        kategorie: widget.kategorie,
+                        eventName: event,
+                      ),
+                    ),
+                  ).then((modified) {
+                    if (modified == true) setState(() {});
+                  });
+                },
+              );
             },
           );
-
-
         },
       ),
-
       floatingActionButton: FloatingActionButton(
-        onPressed: _showMenu, // Menü öffnen
-        child: Icon(Icons.add), // Plus‑Icon
+        onPressed: _showMenu,
+        child: Icon(Icons.add),
       ),
     );
   }

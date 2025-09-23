@@ -23,88 +23,114 @@ class DayDetailScreen extends StatefulWidget {
 }
 
 class _DayDetailScreenState extends State<DayDetailScreen> {
-  late final String _dateKey;     // <- oben im State anlegen (late final)
-  late String _title;                        // aktueller Titel (editierbar)
-  final List<File> _bilder = [];             // lokale Bild‑Liste
-  final TextEditingController _noteCtrl =
-      TextEditingController();               // Notizen‑Feld
+  late final String _dateKey;
+  late String _title;
+  final List<File> _bilder = [];
+  final TextEditingController _noteCtrl = TextEditingController();
 
-    @override
-    void initState() {
-      super.initState();
+  @override
+  void initState() {
+    super.initState();
 
-      _dateKey =
-          '${widget.selectedDate.year}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.day.toString().padLeft(2, '0')}';
+    _dateKey =
+        '${widget.selectedDate.year}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.day.toString().padLeft(2, '0')}';
 
-      // Gespeicherte DayEntry laden
-      final savedEntry =
-          DayRepo().getEntry(widget.kategorie, widget.eventName, _dateKey);
+    _loadEntry();
+  }
 
-      if (savedEntry != null) {
-        _title = savedEntry.title;
-        _noteCtrl.text = savedEntry.note;
-        _bilder.addAll(savedEntry.imagePaths.map((p) => File(p)));
-      } else {
+  Future<void> _loadEntry() async {
+    final entry =
+        await DayRepo().getEntry(widget.kategorie, widget.eventName, _dateKey);
+
+    if (entry != null) {
+      setState(() {
+        _title = entry.title;
+        _noteCtrl.text = entry.note;
+        _bilder.clear();
+        _bilder.addAll(entry.imagePaths.map((p) => File(p)));
+      });
+    } else {
+      setState(() {
         _title =
             '${widget.selectedDate.day}.${widget.selectedDate.month}.${widget.selectedDate.year}';
-      }
-    }
-
-
-    DateTime? _getStartDatum(Map<String, DayEntry> dateMap) {
-      final dates = dateMap.keys
-          .map((k) => DateTime.tryParse(k))
-          .whereType<DateTime>()
-          .toList();
-      if (dates.isEmpty) return null;
-      dates.sort();
-      return dates.first;
-    }
-
-
-
-  /* ---------- Titel bearbeiten ---------- */
-    void _bearbeiteTitel() {
-      final controller = TextEditingController(text: _title);
-
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Titel bearbeiten'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Abbrechen')),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  final t = controller.text.trim();
-                  if (t.isNotEmpty) _title = t;
-                });
-                Navigator.pop(context);
-              },
-              child: const Text('Speichern'),
-            ),
-          ],
-        ),
-      );
-    }
-
-  /* ---------- Bild aus Galerie hinzufügen ---------- */
-  Future<void> _bildHinzufuegen() async {
-      final List<XFile> picked =
-        await ImagePicker().pickMultiImage();   // <– statt pickImage
-
-      if (picked.isNotEmpty) {
-      setState(() {
-        _bilder.addAll(picked.map((x) => File(x.path)));  // alle Pfade übernehmen
       });
     }
   }
+
+  Future<void> _saveEntry() async {
+    final entry = DayEntry(
+      kategorie: widget.kategorie,
+      event: widget.eventName,
+      datum: _dateKey,
+      title: _title,
+      note: _noteCtrl.text,
+      imagePaths: _bilder.map((f) => f.path).toList(),
+    );
+
+    await DayRepo().saveEntry(entry);
+  }
+
+  void _bearbeiteTitel() {
+    final controller = TextEditingController(text: _title);
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Titel bearbeiten'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Abbrechen')),
+          ElevatedButton(
+            onPressed: () async {
+              final t = controller.text.trim();
+              if (t.isNotEmpty) _title = t;
+              await _saveEntry();   // speichern direkt in Isar
+              setState(() {});
+              Navigator.pop(context);
+            },
+            child: const Text('Speichern'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _bildHinzufuegen() async {
+    final List<XFile>? picked =
+        await ImagePicker().pickMultiImage();
+
+    if (picked == null || picked.isEmpty) return;
+
+    setState(() {
+      _bilder.addAll(picked.map((x) => File(x.path)));
+    });
+
+    await _saveEntry(); // sofort in Isar speichern
+  }
+
+
+  DateTime? _getStartDatum(List<DayEntry> entries) {
+    final dates = entries
+        .map((e) => DateTime.tryParse(e.datum))
+        .whereType<DateTime>()
+        .toList();
+    if (dates.isEmpty) return null;
+    dates.sort();
+    return dates.first;
+  }
+
+  @override
+  void dispose() {
+    _noteCtrl.dispose();
+    super.dispose();
+  }
+
+
 
 
 
@@ -123,17 +149,24 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           IconButton(
             icon: Icon(Icons.compare),
             tooltip: 'Vergleichen',
-            onPressed: () {
+            onPressed: () async {
               final date = widget.selectedDate;
-              final katMap = DayRepo().allEntries[widget.kategorie];
-              final currentEventMap = katMap?[widget.eventName];
 
-              if (currentEventMap == null) return;
+              // Alle Einträge für diese Kategorie + Event laden
+              final entries = await DayRepo().watchEntries(widget.kategorie, widget.eventName).first;
 
-              final startDatum = _getStartDatum(currentEventMap);
-              if (startDatum == null) return;
+              if (entries.isEmpty) return;
 
-              final relativerTag = date.difference(startDatum).inDays;
+              // Startdatum ermitteln
+              final startDatum = entries
+                  .map((e) => DateTime.tryParse(e.datum))
+                  .whereType<DateTime>()
+                  .toList()
+                ..sort();
+
+              if (startDatum.isEmpty) return;
+
+              final relativerTag = date.difference(startDatum.first).inDays;
 
               Navigator.push(
                 context,
@@ -147,6 +180,8 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
               );
             },
           ),
+
+
         ],
       ),
       body: Column(
@@ -216,32 +251,22 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(8),
         child: ElevatedButton(
-          onPressed: () {
-            final bool hasContent =
-                _noteCtrl.text.trim().isNotEmpty || _bilder.isNotEmpty;
+          onPressed: () async {
+            final hasContent = _noteCtrl.text.trim().isNotEmpty || _bilder.isNotEmpty;
+
+            final entry = DayEntry(
+              kategorie: widget.kategorie,
+              event: widget.eventName,
+              datum: _dateKey,
+              title: _title,
+              note: _noteCtrl.text,
+              imagePaths: _bilder.map((f) => f.path).toList(),
+            );
 
             if (hasContent) {
-              // speichern
-              DayRepo().saveEntry(
-                widget.kategorie,
-                widget.eventName,
-                _dateKey,
-                DayEntry(
-                  kategorie: widget.kategorie,
-                  event: widget.eventName,
-                  datum: _dateKey,
-                  title: _title,
-                  note: _noteCtrl.text,
-                  imagePaths: _bilder.map((f) => f.path).toList(),
-                ),
-              );
+              await DayRepo().saveEntry(entry); // <-- nur noch Entry übergeben
             } else {
-              // alles leer -> Eintrag komplett entfernen
-              DayRepo().deleteEntry(
-                widget.kategorie,
-                widget.eventName,
-                _dateKey,
-              );
+              await DayRepo().deleteEntry(widget.kategorie, widget.eventName, _dateKey);
             }
 
             Navigator.pop(context, true); // Kalender sofort neu zeichnen
@@ -249,6 +274,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           child: const Text('Alles speichern'),
         ),
       ),
+
 
 
     );

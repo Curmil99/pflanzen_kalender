@@ -35,11 +35,17 @@ dependencies:
   photo_manager: ^3.0.0
   exif: ^3.0.1
   permission_handler: ^11.0.1
+  isar: ^3.1.0+1
+  isar_flutter_libs: ^3.1.0+1
+  path_provider: ^2.1.2   # Für den lokalen Speicherort (Pfad zur App-Dir)
   
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  isar_generator: ^3.1.0 #Hive ist für die lokale Speicherung von Daten
+  build_runner: ^2.4.6
+  
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

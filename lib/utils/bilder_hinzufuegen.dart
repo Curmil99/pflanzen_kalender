@@ -67,6 +67,9 @@ class BilderHelper {
     final List<XFile>? images = await ImagePicker().pickMultiImage();
     if (images == null || images.isEmpty) return;
 
+    final repo = DayRepo();
+  
+
     for (var image in images) {
       final file = File(image.path);
       File targetFile = file;
@@ -83,7 +86,7 @@ class BilderHelper {
       final dateKey =
           '${takenDate.year}-${takenDate.month.toString().padLeft(2, '0')}-${takenDate.day.toString().padLeft(2, '0')}';
 
-      final existingEntry = DayRepo().getEntry(kategorie, eventName, dateKey);
+      final existingEntry = await repo.getEntry(kategorie, eventName, dateKey);
       final updatedImages = List<String>.from(existingEntry?.imagePaths ?? []);
       updatedImages.add(targetFile.path);
 
@@ -101,7 +104,7 @@ class BilderHelper {
         imagePaths: updatedImages,
       );
 
-      DayRepo().saveEntry(kategorie, eventName, dateKey, entry);
+      await repo.saveEntry(entry); // jetzt await
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -109,3 +112,4 @@ class BilderHelper {
     );
   }
 }
+

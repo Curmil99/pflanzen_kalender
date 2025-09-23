@@ -1,3 +1,16 @@
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        // AGP-Version kompatibel mit isar_flutter_libs 3.1.0
+        classpath("com.android.tools.build:gradle:7.4.1")
+        // Kotlin Plugin (falls dein Projekt Kotlin nutzt)
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.10")
+    }
+}
+
 allprojects {
     repositories {
         google()
@@ -12,6 +25,7 @@ subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
+
 subprojects {
     project.evaluationDependsOn(":app")
 }

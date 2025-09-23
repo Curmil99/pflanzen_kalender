@@ -57,83 +57,94 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   static final _keyFmt = DateFormat('yyyy-MM-dd');
 
-  List<DayEntry> _getAndereEventEintraege(DateTime date) {
+  Stream<List<DayEntry>> _getAndereEventEintraegeStream(DateTime date) {
     switch (_currentViewMode) {
       case CalendarViewMode.nurAktuellesEvent:
-        return [];
+        return Stream.value([]); // leere Liste als Stream
       case CalendarViewMode.aktuelleAnsicht:
-        return _getAndereEventsAktuellesJahr(date);
+        return getAndereEventsAktuellesJahrStream(date);
       case CalendarViewMode.vorjahreImMonat:
-        return _getAndereEventsVorjahreImMonat(date);
+        return getAndereEventsVorjahreImMonatStream(date);
       case CalendarViewMode.relativeTage:
-        return _getAndereEventsRelativeTage(date);
+        return getAndereEventsRelativeTageStream(date);
     }
   }
 
-  DateTime? getLastEventDate(String kategorie, String eventName) {
-    final eventMap = DayRepo().allEntries[kategorie]?[eventName];
-    if (eventMap == null || eventMap.isEmpty) return null;
 
-    // Keys sind Strings im Format "JJJJ-MM-TT"
-    final allDates = eventMap.keys.map((key) => DateTime.parse(key)).toList();
+
+  Future<DateTime?> getLastEventDate(String kategorie, String eventName) async {
+    final entries = await DayRepo().watchEntries(kategorie, eventName).first;
+    if (entries.isEmpty) return null;
+
+    // Liste der Datumswerte
+    final allDates = entries
+        .map((e) => DateTime.tryParse(e.datum))
+        .whereType<DateTime>()
+        .toList();
+    if (allDates.isEmpty) return null;
+
     allDates.sort();
-    return allDates.last; // neuestes Datum
+    return allDates.last;
   }
+
 
   //Hier werden die anderen Tage rausgesucht, die aus den anderen Events
 
-  List<DayEntry> _getAndereEventsAktuellesJahr(DateTime date) {
-    final katMap = DayRepo().allEntries[widget.kategorie];
-    if (katMap == null) return [];
+  Stream<List<DayEntry>> getAndereEventsAktuellesJahrStream(DateTime date) {
+    final dateKey = _keyFmt.format(date);
 
-    final dateKey = _keyFmt.format(date); 
-    final List<DayEntry> result = [];
+    // Stream aller Einträge für die Kategorie
+    return DayRepo().watchByKategorie(widget.kategorie).map((entries) {
+      final result = <DayEntry>[];
 
-    katMap.forEach((event, dateMap) {
-      if (event == widget.eventName) return; // aktuelles Event überspringen
+      for (var entry in entries) {
+        // Aktuelles Event überspringen
+        if (entry.event == widget.eventName) continue;
 
-      final entry = dateMap[dateKey];
-      if (entry == null) return;
-
-      if (entry.title.isNotEmpty || entry.note.isNotEmpty || entry.imagePaths.isNotEmpty) {
-        result.add(entry);
+        if (entry.datum == dateKey &&
+            (entry.title.isNotEmpty || entry.note.isNotEmpty || entry.imagePaths.isNotEmpty)) {
+          result.add(entry);
+        }
       }
-    });
 
-    return result;
+      // Optional: nach Datum sortieren, falls mehrere pro Tag (nicht nötig hier, da nur ein Datum pro key)
+      // result.sort((a, b) => a.datum.compareTo(b.datum));
+
+      return result;
+    });
   }
 
-  List<DayEntry> _getAndereEventsVorjahreImMonat(DateTime viewDate) {
-    final katMap = DayRepo().allEntries[widget.kategorie];
-    if (katMap == null) return [];
 
+  Stream<List<DayEntry>> getAndereEventsVorjahreImMonatStream(DateTime viewDate) {
     final int ansichtsJahr = viewDate.year;
     final int systemJahr = DateTime.now().year;
     final int monat = viewDate.month;
     final int tag = viewDate.day;
 
-    final List<DayEntry> result = [];
+    return DayRepo().watchByKategorie(widget.kategorie).map((entries) {
+      final result = <DayEntry>[];
 
-    katMap.forEach((event, dateMap) {
-      if (event == widget.eventName) return;
+      for (var entry in entries) {
+        if (entry.event == widget.eventName) continue; // aktuelles Event überspringen
 
-      dateMap.forEach((key, entry) {
-        // Nur valide YYYY-MM-DD Strings
-        final date = DateTime.tryParse(key);
-        if (date == null) return;
+        final date = DateTime.tryParse(entry.datum);
+        if (date == null) continue;
 
-        // Filter für Monat/Tag & Vorjahr
-        if (date.month != monat || date.day != tag) return;
-        if (date.year >= ansichtsJahr || date.year > systemJahr) return;
+        // Filter: Monat/Tag & Vorjahr
+        if (date.month != monat || date.day != tag) continue;
+        if (date.year >= ansichtsJahr || date.year > systemJahr) continue;
 
         // Nur Einträge mit Inhalt
-        if (entry.title.isEmpty && entry.note.isEmpty && entry.imagePaths.isEmpty) return;
+        if (entry.title.isEmpty && entry.note.isEmpty && entry.imagePaths.isEmpty) continue;
 
         result.add(entry);
-      });
-    });
+      }
 
-    return result;
+      // Optional: sortieren nach Datum (älteste zuerst)
+      result.sort((a, b) => a.datum.compareTo(b.datum));
+
+      return result;
+    });
   }
 
 
@@ -150,69 +161,119 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
     DateTime _stripTime(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
 
-  List<DayEntry> _getAndereEventsRelativeTage(DateTime date) {
-  final katMap = DayRepo().allEntries[widget.kategorie];
-  if (katMap == null) return [];
-  final currentEventMap = katMap[widget.eventName];
-  if (currentEventMap == null) return [];
 
-  final startDatumAktuell = _getStartDatum(currentEventMap);
-  if (startDatumAktuell == null) return [];
+  Stream<List<DayEntry>> getAndereEventsRelativeTageStream(DateTime date) {
+    return DayRepo().watchByKategorie(widget.kategorie).map((entries) {
+      // Einträge pro Event gruppieren
+      final Map<String, Map<String, DayEntry>> katMap = {};
+      for (var entry in entries) {
+        katMap.putIfAbsent(entry.event, () => {});
+        katMap[entry.event]![entry.datum] = entry;
+      }
 
-  final relativerTag = _stripTime(date).difference(_stripTime(startDatumAktuell)).inDays;
-  if (relativerTag < 0) return [];
+      final currentEventMap = katMap[widget.eventName];
+      if (currentEventMap == null) return <DayEntry>[];
 
-  final List<DayEntry> result = [];
-  katMap.forEach((event, dateMap) {
-    if (event == widget.eventName) return;
+      final startDatumAktuell = _getStartDatum(currentEventMap);
+      if (startDatumAktuell == null) return <DayEntry>[];
 
-    final startDatum = _getStartDatum(dateMap);
-    if (startDatum == null) return;
+      final relativerTag = _stripTime(date).difference(_stripTime(startDatumAktuell)).inDays;
+      if (relativerTag < 0) return <DayEntry>[];
 
-    final zielDatum = startDatum.add(Duration(days: relativerTag));
-    final entry = dateMap[_dateKey(zielDatum)];
-    if (entry == null) return;
+      final result = <DayEntry>[];
 
-    if (entry.title.isNotEmpty || entry.note.isNotEmpty || entry.imagePaths.isNotEmpty) {
-      result.add(entry);
-    }
-  });
+      katMap.forEach((event, dateMap) {
+        if (event == widget.eventName) return;
 
-  return result;
-}
+        final startDatum = _getStartDatum(dateMap);
+        if (startDatum == null) return;
 
+        final zielDatum = startDatum.add(Duration(days: relativerTag));
+        final zielEntry = dateMap['${zielDatum.year}-${zielDatum.month.toString().padLeft(2,'0')}-${zielDatum.day.toString().padLeft(2,'0')}'];
+
+        if (zielEntry != null &&
+            (zielEntry.title.isNotEmpty ||
+            zielEntry.note.isNotEmpty ||
+            zielEntry.imagePaths.isNotEmpty)) {
+          result.add(zielEntry);
+        }
+      });
+
+      return result;
+    });
+  }
 
 
 
   Widget _buildDayCell(DateTime date, bool isToday) {
-  final dateKey = _dateKey(date);
-  final current = DayRepo().getEntry(widget.kategorie, widget.eventName, dateKey);
-  final andere = _getAndereEventEintraege(date);
+    final dateKey = _dateKey(date);
 
-  return Container(
-    width: double.infinity,
-    margin: EdgeInsets.all(2),
-    decoration: BoxDecoration(
-      border: Border.all(color: Colors.grey.shade400, width: 0.6),
-      borderRadius: BorderRadius.circular(6),
-      color: isToday ? Colors.green.shade100 : null,
-    ),
-    child: Padding(
-      padding: const EdgeInsets.all(4.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('${date.day}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-          if (current != null && (current.title.isNotEmpty || current.note.isNotEmpty || current.imagePaths.isNotEmpty))
-            _badge(current.title.isNotEmpty ? current.title : '', Colors.green.shade400, Colors.white),
-          for (final e in andere)
-            if (e.title.isNotEmpty || e.note.isNotEmpty || e.imagePaths.isNotEmpty)
-              _badge(e.title, Colors.green.shade200, Colors.black87),
-        ],
-      ),
-    ),
-  );
-}
+    return StreamBuilder<DayEntry?>(
+      stream: DayRepo()
+          .watchEntries(widget.kategorie, widget.eventName)
+          .map((entries) {
+        try {
+          return entries.firstWhere((e) => e.datum == dateKey);
+        } catch (_) {
+          return null;
+        }
+      }),
+      builder: (context, currentSnapshot) {
+        final current = currentSnapshot.data;
+
+        return StreamBuilder<List<DayEntry>>(
+          stream: _getAndereEventEintraegeStream(date),
+          builder: (context, andereSnapshot) {
+            final andere = andereSnapshot.data ?? [];
+
+            // Deduplizieren nach Event + Datum
+            final Map<String, DayEntry> uniqueAndere = {};
+            for (var e in andere) {
+              final key = '${e.event}-${e.datum}';
+              if (!uniqueAndere.containsKey(key)) {
+                uniqueAndere[key] = e;
+              }
+            }
+            final finalAndere = uniqueAndere.values.toList();
+
+            return Container(
+              width: double.infinity,
+              margin: EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade400, width: 0.6),
+                borderRadius: BorderRadius.circular(6),
+                color: isToday ? Colors.green.shade100 : null,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(4.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${date.day}',
+                        style:
+                            TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    if (current != null &&
+                        (current.title.isNotEmpty ||
+                            current.note.isNotEmpty ||
+                            current.imagePaths.isNotEmpty))
+                      _badge(
+                          current.title.isNotEmpty ? current.title : '',
+                          Colors.green.shade400,
+                          Colors.white),
+                    for (final e in finalAndere)
+                      if (e.title.isNotEmpty ||
+                          e.note.isNotEmpty ||
+                          e.imagePaths.isNotEmpty)
+                        _badge(e.title, Colors.green.shade200, Colors.black87),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
 
   // kleines Hilfs‑Widget für Badges
@@ -337,21 +398,22 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           },
         ),
 
-   floatingActionButton: FloatingActionButton(
-      child: Icon(Icons.history),
-      onPressed: () {
-        final lastDate = getLastEventDate(widget.kategorie, widget.eventName);
-        if (lastDate != null) {
-          setState(() {
-            _focusedDay = lastDate;
-          });
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Keine Einträge vorhanden")),
-          );
-        }
-      },
-    ),
+        floatingActionButton: FloatingActionButton(
+          child: Icon(Icons.history),
+          onPressed: () async {
+            final lastDate = await getLastEventDate(widget.kategorie, widget.eventName);
+            if (lastDate != null) {
+              setState(() {
+                _focusedDay = lastDate;
+              });
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text("Keine Einträge vorhanden")),
+              );
+            }
+          },
+        ),
+
 
       ),
     );

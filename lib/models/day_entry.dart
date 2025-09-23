@@ -1,12 +1,19 @@
-// lib/models/day_entry.dart
-// Modell für einen einzelnen Tag mit Titel, Notiz und Bildpfaden
+import 'package:isar/isar.dart';
+
+part 'day_entry.g.dart';
+
+@collection
 class DayEntry {
-  final String kategorie;
-  final String event;
-  final String datum; // z.B. "2025-07-02"
-  String title;
-  String note;
-  List<String> imagePaths;
+  Id id = Isar.autoIncrement; // Automatische ID
+
+  late String kategorie;
+  late String event;
+  late String datum;
+
+  String title = '';
+  String note = '';
+
+  List<String> imagePaths = [];
 
   DayEntry({
     required this.kategorie,
@@ -15,5 +22,6 @@ class DayEntry {
     this.title = '',
     this.note = '',
     this.imagePaths = const [],
+    
   });
 }
