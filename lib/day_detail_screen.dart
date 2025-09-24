@@ -24,7 +24,7 @@ class DayDetailScreen extends StatefulWidget {
 
 class _DayDetailScreenState extends State<DayDetailScreen> {
   late final String _dateKey;
-  late String _title;
+  late String _title = '' ;
   final List<File> _bilder = [];
   final TextEditingController _noteCtrl = TextEditingController();
 
@@ -114,15 +114,6 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   }
 
 
-  DateTime? _getStartDatum(List<DayEntry> entries) {
-    final dates = entries
-        .map((e) => DateTime.tryParse(e.datum))
-        .whereType<DateTime>()
-        .toList();
-    if (dates.isEmpty) return null;
-    dates.sort();
-    return dates.first;
-  }
 
   @override
   void dispose() {

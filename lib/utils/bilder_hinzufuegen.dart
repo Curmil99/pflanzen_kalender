@@ -68,7 +68,9 @@ class BilderHelper {
     if (images == null || images.isEmpty) return;
 
     final repo = DayRepo();
-  
+
+    // Bilder nach Datum gruppieren (falls mehrere Tage vorkommen)
+    final Map<String, List<String>> dateToPaths = {};
 
     for (var image in images) {
       final file = File(image.path);
@@ -86,25 +88,32 @@ class BilderHelper {
       final dateKey =
           '${takenDate.year}-${takenDate.month.toString().padLeft(2, '0')}-${takenDate.day.toString().padLeft(2, '0')}';
 
-      final existingEntry = await repo.getEntry(kategorie, eventName, dateKey);
-      final updatedImages = List<String>.from(existingEntry?.imagePaths ?? []);
-      updatedImages.add(targetFile.path);
+      dateToPaths.putIfAbsent(dateKey, () => []);
+      dateToPaths[dateKey]!.add(targetFile.path);
+    }
 
-      final formattedDate =
-          '${takenDate.day.toString().padLeft(2, '0')}.'
-          '${takenDate.month.toString().padLeft(2, '0')}.'
-          '${takenDate.year}';
+    // Jetzt pro Datum den passenden Entry updaten
+    for (var entryDate in dateToPaths.keys) {
+      final existingEntry = await repo.getEntry(kategorie, eventName, entryDate);
+      final updatedImages = List<String>.from(existingEntry?.imagePaths ?? []);
+      updatedImages.addAll(dateToPaths[entryDate]!);
+
+      // Titel fallback: Datum, wenn leer
+      final dateParts = entryDate.split("-");
+      final formattedDate = "${dateParts[2]}.${dateParts[1]}.${dateParts[0]}";
 
       final entry = DayEntry(
         kategorie: kategorie,
         event: eventName,
-        datum: dateKey,
-        title: existingEntry?.title.isNotEmpty == true ? existingEntry!.title : formattedDate,
+        datum: entryDate,
+        title: existingEntry?.title.isNotEmpty == true
+            ? existingEntry!.title
+            : formattedDate,
         note: existingEntry?.note ?? '',
         imagePaths: updatedImages,
       );
 
-      await repo.saveEntry(entry); // jetzt await
+      await repo.saveEntry(entry);
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -112,4 +121,3 @@ class BilderHelper {
     );
   }
 }
-
