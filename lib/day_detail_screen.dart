@@ -243,7 +243,10 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
         padding: const EdgeInsets.all(8),
         child: ElevatedButton(
           onPressed: () async {
-            final hasContent = _noteCtrl.text.trim().isNotEmpty || _bilder.isNotEmpty;
+            final hasNote = _noteCtrl.text.trim().isNotEmpty;
+            final hasImages = _bilder.where((f) => f.path.trim().isNotEmpty).isNotEmpty;
+            final hasContent = hasNote || hasImages;
+
 
             final entry = DayEntry(
               kategorie: widget.kategorie,
@@ -253,6 +256,10 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
               note: _noteCtrl.text,
               imagePaths: _bilder.map((f) => f.path).toList(),
             );
+
+            print("Note: '${_noteCtrl.text}'");
+            print("Bilder: ${_bilder.length}");
+
 
             if (hasContent) {
               await DayRepo().saveEntry(entry); // <-- nur noch Entry übergeben

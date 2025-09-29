@@ -21,10 +21,38 @@ class DayRepo {
   // ---------- CRUD ----------
 
   Future<void> saveEntry(DayEntry entry) async {
+    final hasTitle  = entry.title.trim().isNotEmpty;
+    final hasNote   = entry.note.trim().isNotEmpty;
+    final hasImages = entry.imagePaths.isNotEmpty;
+
     await _isar.writeTxn(() async {
-      await _isar.dayEntrys.put(entry);
+      if (!hasTitle && !hasNote && !hasImages) {
+        // Falls der Eintrag komplett leer ist -> löschen
+        await _isar.dayEntrys
+            .filter()
+            .kategorieEqualTo(entry.kategorie)
+            .eventEqualTo(entry.event)
+            .datumEqualTo(entry.datum)
+            .deleteAll();
+      } else {
+        // Ansonsten speichern
+        await _isar.dayEntrys.put(entry);
+      }
     });
   }
+
+  Future<void> deleteEntry(String kategorie, String event, String datum) async {
+    await _isar.writeTxn(() async {
+      await _isar.dayEntrys
+          .filter()
+          .kategorieEqualTo(kategorie)
+          .eventEqualTo(event)
+          .datumEqualTo(datum)
+          .deleteAll();
+    });
+  }
+
+
 
   Future<DayEntry?> getEntry(String kategorie, String event, String datum) async {
     return await _isar.dayEntrys
@@ -35,13 +63,7 @@ class DayRepo {
         .findFirst();
   }
 
-  Future<void> deleteEntry(String kategorie, String event, String datum) async {
-    final entry = await getEntry(kategorie, event, datum);
-    if (entry == null) return;
-    await _isar.writeTxn(() async {
-      await _isar.dayEntrys.delete(entry.id);
-    });
-  }
+    
 
   Future<void> deleteImage(String kategorie, String event, String datum, String imagePath) async {
     final entry = await getEntry(kategorie, event, datum);
