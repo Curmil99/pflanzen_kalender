@@ -52,7 +52,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     } else {
       setState(() {
         _title =
-            '${widget.selectedDate.day}.${widget.selectedDate.month}.${widget.selectedDate.year}';
+            '${widget.selectedDate.year}';
       });
     }
   }

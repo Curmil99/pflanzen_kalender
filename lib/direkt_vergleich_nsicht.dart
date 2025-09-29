@@ -224,7 +224,7 @@ class _DirektVergleichAnsichtState extends State<DirektVergleichAnsicht> {
                           ),
                         ),
                       // Rechter Pfeil nur sichtbar, wenn nicht letztes Bild
-                      if (_bottomImageIndex < _topEntry.eintrag.imagePaths.length - 1)
+                      if (_bottomImageIndex < _bottomEntry.eintrag.imagePaths.length - 1)
                         Positioned(
                           right: 0,
                           top: 0,

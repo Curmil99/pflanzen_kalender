@@ -261,10 +261,31 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                           Colors.green.shade400,
                           Colors.white),
                     for (final e in finalAndere)
-                      if (e.title.isNotEmpty ||
-                          e.note.isNotEmpty ||
-                          e.imagePaths.isNotEmpty)
-                        _badge(e.title, Colors.green.shade200, Colors.black87),
+                      if (e.title.isNotEmpty || e.note.isNotEmpty || e.imagePaths.isNotEmpty)
+                        GestureDetector(
+                          onTap: () async {
+                            final changed = await Navigator.push<bool>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => DayDetailScreen(
+                                  kategorie: e.kategorie,
+                                  eventName: e.event,
+                                  selectedDate: DateTime.parse(e.datum), // dein dateKey ist String
+                                ),
+                              ),
+                            );
+                            if (changed == true) {
+                              _modified = true;
+                              setState(() {});
+                            }
+                          },
+                          child: _badge(
+                            e.title,
+                            Colors.green.shade200,
+                            Colors.black87,
+                          ),
+                        ),
+
                   ],
                 ),
               ),
