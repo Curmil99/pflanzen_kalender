@@ -198,7 +198,64 @@ class EventListeScreen extends StatefulWidget {
   _EventListeScreenState createState() => _EventListeScreenState();
 }
 
+enum EventSortiermodus { alphabetisch, erstellungsdatum, laufzeit }
+
+
+
 class _EventListeScreenState extends State<EventListeScreen> {
+  EventSortiermodus _sortiermodus = EventSortiermodus.erstellungsdatum;
+
+  Map<EventSortiermodus, bool> _ascending = {
+    EventSortiermodus.alphabetisch: true,
+    EventSortiermodus.erstellungsdatum: true,
+    EventSortiermodus.laufzeit: false, // Dauer macht meist Sinn absteigend
+  };
+
+
+
+  List<String> get _events =>
+      _eventStore.putIfAbsent(widget.kategorie, () => []);
+
+  Future<List<String>> _getSortedEvents() async {
+    var events = List<String>.from(_events);
+
+    if (_sortiermodus == EventSortiermodus.alphabetisch) {
+      events.sort((a, b) => a.compareTo(b));
+      if (!_ascending[_sortiermodus]!) events = events.reversed.toList();
+      return events;
+    }
+
+    // Startdatum und Dauer berechnen
+    final Map<String, DateTime> startDates = {};
+    final Map<String, int> spans = {};
+
+    await Future.wait(events.map((ev) async {
+      final repo = DayRepo();
+      final entries = await repo.watchEntries(widget.kategorie, ev).first;
+
+      if (entries.isEmpty) {
+        startDates[ev] = DateTime(2100);
+        spans[ev] = 0;
+        return;
+      }
+
+      final dates = entries.map((e) => DateTime.parse(e.datum)).toList()..sort();
+      startDates[ev] = dates.first;
+      spans[ev] = dates.last.difference(dates.first).inDays + 1;
+    }));
+
+    if (_sortiermodus == EventSortiermodus.erstellungsdatum) {
+      events.sort((a, b) => startDates[a]!.compareTo(startDates[b]!));
+    } else if (_sortiermodus == EventSortiermodus.laufzeit) {
+      events.sort((a, b) => spans[b]!.compareTo(spans[a]!));
+    }
+
+    if (!_ascending[_sortiermodus]!) events = events.reversed.toList();
+
+    return events;
+  }
+
+  
   // Map speichert für jede Kategorie ihre eigene Event‑Liste.
   // => In einer echten App wäre das eine DB‑Abfrage; für jetzt Memory‑Storage.
   static final Map<String, List<String>> _eventStore = {
@@ -207,8 +264,6 @@ class _EventListeScreenState extends State<EventListeScreen> {
     'Sonstiges': ['Test'],
   };
 
-  List<String> get _events =>
-      _eventStore.putIfAbsent(widget.kategorie, () => []); // Events der aktuellen Kategorie
 
   /* ---------- Event hinzufügen ---------- */
   void _showEventHinzufuegenDialog() {
@@ -301,8 +356,22 @@ class _EventListeScreenState extends State<EventListeScreen> {
       ),
     );
   }
+
+  Future<List<Map<String, dynamic>>> _getSortedEventsWithSpans() async {
+    final events = await _getSortedEvents(); // sortiert nach gewähltem Modus
+    final List<Map<String, dynamic>> result = [];
+
+    for (var ev in events) {
+      final span = await _spanInTagen(ev);
+      result.add({'name': ev, 'span': span});
+    }
+
+    return result;
+  }
+
+
   /// Liefert die Zahl der Tage zwischen dem ersten und letzten Eintrag
-/// (inklusive beider Tage). Gibt 0 zurück, wenn gar kein Eintrag existiert.
+  /// (inklusive beider Tage). Gibt 0 zurück, wenn gar kein Eintrag existiert.
   Future<int> _spanInTagen(String event) async {
     final repo = DayRepo();
 
@@ -342,35 +411,68 @@ class _EventListeScreenState extends State<EventListeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('${widget.kategorie} Events')),
-      body: ListView.builder(
-        itemCount: _events.length,
-        itemBuilder: (context, index) {
-          final event = _events[index];
+      appBar: AppBar(
+        title: Text('${widget.kategorie} Events'),
+        actions: [
+          PopupMenuButton<EventSortiermodus>(
+            icon: Icon(Icons.sort),
+            onSelected: (mod) {
+              setState(() {
+                if (_sortiermodus == mod) {
+                  // Klick auf gleichen Modus → Reihenfolge umdrehen
+                  _ascending[mod] = !_ascending[mod]!;
+                } else {
+                  // neuer Modus → Standard-Reihenfolge verwenden
+                  _sortiermodus = mod;
+                }
+              });
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: EventSortiermodus.alphabetisch,
+                child: Text('Alphabetisch'),
+              ),
+              PopupMenuItem(
+                value: EventSortiermodus.erstellungsdatum,
+                child: Text('Erstellungsdatum'),
+              ),
+              PopupMenuItem(
+                value: EventSortiermodus.laufzeit,
+                child: Text('Dauer in Tagen'),
+              ),
+            ],
+          ),
 
-          return FutureBuilder<int>(
-            future: _spanInTagen(event),
-            builder: (context, snapshot) {
-              final span = snapshot.data ?? 0;
+          ],
+        ),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _getSortedEventsWithSpans(), // neues Future
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return Center(child: CircularProgressIndicator());
+          final eventsWithSpans = snapshot.data!;
+
+          return ListView.builder(
+            itemCount: eventsWithSpans.length,
+            itemBuilder: (context, index) {
+              final eventData = eventsWithSpans[index];
+              final eventName = eventData['name'] as String;
+              final span = eventData['span'] as int;
 
               return ListTile(
-                title: Text(event),
+                title: Text(eventName),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Padding(
                       padding: const EdgeInsets.only(right: 8.0),
-                      child: Text(
-                        '$span',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-                      ),
+                      child: Text('$span', style: TextStyle(color: Colors.grey[700])),
                     ),
                     IconButton(
                       onPressed: () async {
                         await BilderHelper.addBilderZuEvent(
                           context: context,
                           kategorie: widget.kategorie,
-                          eventName: event,
+                          eventName: eventName,
                         );
                         setState(() {});
                       },
@@ -394,7 +496,7 @@ class _EventListeScreenState extends State<EventListeScreen> {
                     MaterialPageRoute(
                       builder: (_) => EventDetailScreen(
                         kategorie: widget.kategorie,
-                        eventName: event,
+                        eventName: eventName,
                       ),
                     ),
                   ).then((modified) {
@@ -412,5 +514,5 @@ class _EventListeScreenState extends State<EventListeScreen> {
       ),
     );
   }
-}
 
+}
