@@ -11,7 +11,7 @@ enum VergleichsModus { relativ, datum }
 class VergleichsAnsicht extends StatefulWidget {
   final String aktuellesEventName;
   final String kategorie;
-  final int? aktuellerTag;
+  final int aktuellerTag;
   final int? startIndex;
   final VergleichsModus modus;
 
@@ -19,7 +19,7 @@ class VergleichsAnsicht extends StatefulWidget {
     super.key,
     required this.aktuellesEventName,
     required this.kategorie,
-    this.aktuellerTag,
+    required this.aktuellerTag,
     this.startIndex,
     this.modus = VergleichsModus.relativ,
   });
@@ -37,61 +37,19 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
   @override
   void initState() {
     super.initState();
-    modus = widget.modus;
     hauptEventName = widget.aktuellesEventName;
-    hauptIndex = 0;
-    vergleichseintraegeFuture = _loadVergleichsdaten();
+    hauptIndex = widget.startIndex ?? widget.aktuellerTag;
+    modus = widget.modus;
+    
+    // erster Aufruf: initialLoad = true
+    vergleichseintraegeFuture = _loadVergleichsdaten(initialLoad: true);
   }
 
   String _formatDateKey(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-  DateTime? _getStartDatumFromList(List<DayEntry> entries) {
-    if (entries.isEmpty) return null;
-    final dates = entries
-        .map((e) => DateTime.tryParse(e.datum))
-        .whereType<DateTime>()
-        .toList();
-    if (dates.isEmpty) return null;
-    dates.sort();
-    return dates.first;
-  }
-
-  DayEntry? _findClosestEntryInList(List<DayEntry> entries, DateTime target) {
-    DayEntry? closest;
-    int minDiff = 1 << 30;
-    for (var e in entries) {
-      final d = DateTime.tryParse(e.datum);
-      if (d == null) continue;
-      final diff = (d.difference(target).inDays).abs();
-      if (diff < minDiff) {
-        minDiff = diff;
-        closest = e;
-      }
-    }
-    return closest;
-  }
-
-  DayEntry? _findClosestEntryByDayMonthInList(
-      List<DayEntry> entries, DateTime target) {
-    DayEntry? closest;
-    int minDiff = 1 << 30;
-    for (var e in entries) {
-      final d = DateTime.tryParse(e.datum);
-      if (d == null) continue;
-      final dayOfYearA =
-          DateTime(d.year, d.month, d.day).difference(DateTime(d.year, 1, 1)).inDays;
-      final dayOfYearB =
-          DateTime(target.year, target.month, target.day).difference(DateTime(target.year, 1, 1)).inDays;
-      int diff = (dayOfYearA - dayOfYearB).abs();
-      if (diff > 182) diff = 365 - diff;
-      if (diff < minDiff) {
-        minDiff = diff;
-        closest = e;
-      }
-    }
-    return closest;
-  }
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
 
   DayEntry _makePlaceholderEntry(String eventName, DateTime date) {
     return DayEntry(
@@ -103,19 +61,57 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
       imagePaths: [],
     );
   }
+  
+  DateTime? _getStartDatumFromList(List<DayEntry> entries) {
+    if (entries.isEmpty) return null;
+    final dates = entries
+        .map((e) => DateTime.tryParse(e.datum))
+        .whereType<DateTime>()
+        .toList();
+    if (dates.isEmpty) return null;
+    dates.sort();
+    return dates.first;
+  }
 
-  Future<List<Vergleichseintrag>> _loadVergleichsdaten() async {
+
+  Future<List<Vergleichseintrag>> _loadVergleichsdaten({bool initialLoad = false}) async {
     // 1) Hauptevent laden
-    final currentEntries =
-        await DayRepo().watchEntries(widget.kategorie, hauptEventName).first;
+    final currentEntries = await DayRepo().watchEntries(widget.kategorie, hauptEventName).first;
     if (currentEntries.isEmpty) return [];
 
-    final hauptStart = _getStartDatumFromList(currentEntries);
-    if (hauptIndex >= currentEntries.length) hauptIndex = currentEntries.length - 1;
+    // nach Datum sortieren
+    currentEntries.sort((a, b) => a.datum.compareTo(b.datum));
+
+    // Index absichern
+    if (initialLoad) {
+      // Nur beim ersten Laden: berechne Index anhand des relativen Tages
+      final hauptStart = _getStartDatumFromList(currentEntries);
+      if (hauptStart != null) {
+        final targetDate = hauptStart.add(Duration(days: widget.aktuellerTag));
+        int idx = currentEntries.indexWhere((e) {
+          final d = DateTime.tryParse(e.datum);
+          return d != null &&
+                d.year == targetDate.year &&
+                d.month == targetDate.month &&
+                d.day == targetDate.day;
+        });
+        if (idx == -1) idx = 0; // Fallback
+        hauptIndex = idx;
+      } else {
+        hauptIndex = 0;
+      }
+    } else {
+      // später: einfach aktueller Index behalten
+      if (hauptIndex < 0) hauptIndex = 0;
+      if (hauptIndex >= currentEntries.length) hauptIndex = currentEntries.length - 1;
+    }
+
     final hauptDatumEntry = currentEntries[hauptIndex];
     final hauptDatum = DateTime.tryParse(hauptDatumEntry.datum)!;
-    final hauptRelativeDays =
-        hauptStart != null ? hauptDatum.difference(hauptStart).inDays : 0;
+
+    // Berechne relativen Tag
+    final hauptStart = _getStartDatumFromList(currentEntries);
+    final hauptRelativeDays = hauptStart != null ? hauptDatum.difference(hauptStart).inDays : 0;
 
     final result = <Vergleichseintrag>[];
     result.add(Vergleichseintrag(
@@ -136,6 +132,8 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
       if (kv.key == hauptEventName) continue;
       final startDatum = _getStartDatumFromList(kv.value);
       if (startDatum == null) continue;
+
+      kv.value.sort((a, b) => a.datum.compareTo(b.datum));
 
       DayEntry? chosen;
       int relativeTag = 0;
@@ -162,51 +160,84 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
     return result;
   }
 
-  bool _isSameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
 
-  int _findClosestIndex(List<DateTime> dates, DateTime target) {
-    int bestIdx = 0;
-    int bestDiff = (dates[0].difference(target).inDays).abs();
-    for (int i = 1; i < dates.length; i++) {
-      final diff = (dates[i].difference(target).inDays).abs();
-      if (diff < bestDiff) {
-        bestDiff = diff;
-        bestIdx = i;
+  DayEntry? _findClosestEntryInList(List<DayEntry> entries, DateTime target) {
+    DayEntry? closest;
+    int minDiff = 1 << 30;
+    for (var e in entries) {
+      final d = DateTime.tryParse(e.datum);
+      if (d == null) continue;
+      final diff = (d.difference(target).inDays).abs();
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = e;
       }
     }
-    return bestIdx;
+    return closest;
   }
 
-  // Pfeil-Handler unverändert: auf chosenIndex im FutureBuilder reagieren
+  DayEntry? _findClosestEntryByDayMonthInList(List<DayEntry> entries, DateTime target) {
+    DayEntry? closest;
+    int minDiff = 1 << 30;
+    for (var e in entries) {
+      final d = DateTime.tryParse(e.datum);
+      if (d == null) continue;
+      final dayOfYearA = DateTime(d.year, d.month, d.day).difference(DateTime(d.year, 1, 1)).inDays;
+      final dayOfYearB = DateTime(target.year, target.month, target.day).difference(DateTime(target.year, 1, 1)).inDays;
+      int diff = (dayOfYearA - dayOfYearB).abs();
+      if (diff > 182) diff = 365 - diff;
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = e;
+      }
+    }
+    return closest;
+  }
+
   void _onArrowPressed(bool forward, Vergleichseintrag eintrag) async {
     final entries = await DayRepo().watchEntries(widget.kategorie, eintrag.eventName).first;
     if (entries.isEmpty) return;
-    final dates = entries.map((e) => DateTime.tryParse(e.datum)!).toList()..sort();
 
-    int idx = dates.indexWhere(
-        (d) => _isSameDay(d, DateTime.tryParse(eintrag.eintrag.datum)!));
-    if (idx == -1) idx = _findClosestIndex(dates, DateTime.tryParse(eintrag.eintrag.datum)!);
+    entries.sort((a, b) => a.datum.compareTo(b.datum));
 
-    int newIdx = forward ? min(idx + 1, dates.length - 1) : max(idx - 1, 0);
-
-    setState(() {
-      hauptEventName = eintrag.eventName;
-      hauptIndex = newIdx;
-      vergleichseintraegeFuture = _loadVergleichsdaten();
-    });
+    if (eintrag.eventName == hauptEventName) {
+      int newIdx = forward ? min(hauptIndex + 1, entries.length - 1) : max(hauptIndex - 1, 0);
+      setState(() {
+        hauptIndex = newIdx;
+        vergleichseintraegeFuture = _loadVergleichsdaten();
+      });
+    } else {
+      // Klick auf Nebenevent -> neues HauptEvent
+      int idx = 0;
+      final entryDate = DateTime.tryParse(eintrag.eintrag.datum);
+      if (entryDate != null) {
+        idx = entries.indexWhere((e) => _isSameDay(DateTime.tryParse(e.datum)!, entryDate));
+        if (idx == -1) idx = 0;
+      }
+      setState(() {
+        hauptEventName = eintrag.eventName;
+        hauptIndex = idx;
+        vergleichseintraegeFuture = _loadVergleichsdaten();
+      });
+    }
   }
 
   void _onMakeEventMain(Vergleichseintrag eintrag) async {
     final entries = await DayRepo().watchEntries(widget.kategorie, eintrag.eventName).first;
     if (entries.isEmpty) return;
-    final dates = entries.map((e) => DateTime.tryParse(e.datum)!).toList()..sort();
-    DateTime? entryDate = DateTime.tryParse(eintrag.eintrag.datum);
-    int idx = entryDate != null ? _findClosestIndex(dates, entryDate) : 0;
+
+    entries.sort((a, b) => a.datum.compareTo(b.datum));
+
+    int idx = 0;
+    final entryDate = DateTime.tryParse(eintrag.eintrag.datum);
+    if (entryDate != null) {
+      idx = entries.indexWhere((e) => _isSameDay(DateTime.tryParse(e.datum)!, entryDate));
+      if (idx == -1) idx = 0;
+    }
 
     setState(() {
       hauptEventName = eintrag.eventName;
-      hauptIndex = idx.clamp(0, dates.length - 1);
+      hauptIndex = idx;
       vergleichseintraegeFuture = _loadVergleichsdaten();
     });
   }
