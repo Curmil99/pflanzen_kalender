@@ -3,6 +3,7 @@ import 'event_detail_screen.dart';
 //import 'day_detail_screen.dart';
 import '../repositories/day_repo.dart'; 
 import '../utils/bilder_hinzufuegen.dart'; // Import hinzufügen
+import '../Screens/galerie_screen.dart';
 
 
 void main() async {
@@ -487,6 +488,20 @@ class _EventListeScreenState extends State<EventListeScreen> {
                           ),
                         ],
                       ),
+                    ),
+                    IconButton(         //Button für Galerieansicht
+                      icon: Icon(Icons.photo_library),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => GalerieScreen(
+                              kategorie: widget.kategorie,
+                              eventName: eventName,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
