@@ -72,7 +72,10 @@ class _GalerieScreenState extends State<GalerieScreen> {
     );
 
     // Wenn im Vollbild Änderungen gemacht wurden → neu laden
-    if (changed == true) await _ladeBilder();
+    // Wenn in Vollbild Änderungen an den Einträgen gemacht wurden, neu laden
+    if (changed == true) {
+      _ladeBilder();
+    }
   }
 
   void _toggleAuswahlmodus(String bildPfad) {

@@ -285,7 +285,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                             Colors.black87,
                           ),
                         ),
-
                   ],
                 ),
               ),

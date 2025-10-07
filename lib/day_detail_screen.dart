@@ -12,21 +12,24 @@ class DayDetailScreen extends StatefulWidget {
   final String eventName;             // z.B. "2025"
   final DateTime selectedDate;        // angeklicktes Datum
 
-  DayDetailScreen({
+    const DayDetailScreen({
     required this.kategorie,
     required this.eventName,
     required this.selectedDate,
-  });
+    Key? key,
+  }) : super(key: key);
 
   @override
-  _DayDetailScreenState createState() => _DayDetailScreenState();
+  State<DayDetailScreen> createState() => _DayDetailScreenState();
 }
 
 class _DayDetailScreenState extends State<DayDetailScreen> {
   late final String _dateKey;
   late String _title = '' ;
-  final List<File> _bilder = [];
+  List<File> _bilder = [];
   final TextEditingController _noteCtrl = TextEditingController();
+
+  bool _initialLoaded = false;
 
   @override
   void initState() {
@@ -35,40 +38,31 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     _dateKey =
         '${widget.selectedDate.year}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.day.toString().padLeft(2, '0')}';
 
-    _loadEntry();
+    
   }
 
-  Future<void> _loadEntry() async {
-    final entry =
-        await DayRepo().getEntry(widget.kategorie, widget.eventName, _dateKey);
-
-    if (entry != null) {
-      setState(() {
-        _title = entry.title;
-        _noteCtrl.text = entry.note;
-        _bilder.clear();
-        _bilder.addAll(entry.imagePaths.map((p) => File(p)));
-      });
-    } else {
-      setState(() {
-        _title =
-            '${widget.selectedDate.year}';
-      });
-    }
-  }
+ 
 
   Future<void> _saveEntry() async {
-    final entry = DayEntry(
-      kategorie: widget.kategorie,
-      event: widget.eventName,
-      datum: _dateKey,
-      title: _title,
-      note: _noteCtrl.text,
-      imagePaths: _bilder.map((f) => f.path).toList(),
-    );
+    final existing = await DayRepo().getEntry(widget.kategorie, widget.eventName, _dateKey);
 
-    await DayRepo().saveEntry(entry);
+    final updated = existing ??
+        DayEntry(
+          kategorie: widget.kategorie,
+          event: widget.eventName,
+          datum: _dateKey,
+          title: '',
+          note: '',
+          imagePaths: [],
+        );
+
+    updated.title = _title;
+    updated.note = _noteCtrl.text;
+    updated.imagePaths = _bilder.map((f) => f.path).toList();
+
+    await DayRepo().saveEntry(updated);
   }
+
 
   void _bearbeiteTitel() {
     final controller = TextEditingController(text: _title);
@@ -101,16 +95,37 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   }
 
   Future<void> _bildHinzufuegen() async {
-    final List<XFile>? picked =
-        await ImagePicker().pickMultiImage();
-
+    final List<XFile>? picked = await ImagePicker().pickMultiImage();
     if (picked == null || picked.isEmpty) return;
 
-    setState(() {
-      _bilder.addAll(picked.map((x) => File(x.path)));
-    });
+    final newPaths = picked.map((x) => x.path).toList();
 
-    await _saveEntry(); // sofort in Isar speichern
+    // Aktuellen Eintrag aus DB holen
+    final existingEntry = await DayRepo()
+        .getEntry(widget.kategorie, widget.eventName, _dateKey);
+
+    final updatedEntry = existingEntry ??
+         DayEntry(
+          kategorie: widget.kategorie,
+          event: widget.eventName,
+          datum: _dateKey,
+          title: _title,
+          note: _noteCtrl.text,
+          imagePaths: [],
+        );
+
+    // Vorhandene Pfade beibehalten und neue hinzufügen
+    final allPaths = {...updatedEntry.imagePaths, ...newPaths}.toList();
+    updatedEntry.imagePaths = allPaths;
+
+    await DayRepo().saveEntry(updatedEntry);
+
+    // Jetzt auch im UI aktualisieren
+    setState(() {
+      _bilder
+        ..clear()
+        ..addAll(allPaths.map((p) => File(p)));
+    });
   }
 
 
@@ -128,153 +143,186 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
 
 
   @override
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: GestureDetector(
-          onTap: _bearbeiteTitel,          // Klick → Titel editieren
-           child: Text(_title.isNotEmpty ? _title : 'Neuer Eintrag'),  // Default EventName nur optisch
-        ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.compare),
-            tooltip: 'Vergleichen',
-            onPressed: () async {
-              final date = widget.selectedDate;
-
-              // Alle Einträge für diese Kategorie + Event laden
-              final entries = await DayRepo().watchEntries(widget.kategorie, widget.eventName).first;
-
-              if (entries.isEmpty) return;
-
-              // Startdatum ermitteln
-              final startDatum = entries
-                  .map((e) => DateTime.tryParse(e.datum))
-                  .whereType<DateTime>()
-                  .toList()
-                ..sort();
-
-              if (startDatum.isEmpty) return;
-
-              final relativerTag = date.difference(startDatum.first).inDays;
-
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => VergleichsAnsicht(
-                    aktuellesEventName: widget.eventName,
-                    kategorie: widget.kategorie,
-                    aktuellerTag: relativerTag,
-                  ),
-                ),
-              );
-            },
-          ),
-
-
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(                               // obere Hälfte – Bilder
-            flex: 1,
-            child: _bilder.isEmpty
-                ? Center(child: Text('Keine Bilder'))
-                : GridView.builder(
-                    padding: EdgeInsets.all(8),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,         // 3 Bilder pro Zeile
-                      crossAxisSpacing: 4,
-                      mainAxisSpacing: 4,
-                    ),
-                    itemCount: _bilder.length,
-                    itemBuilder: (context, i) => Stack(
-                      children: [
-                        Image.file(_bilder[i], fit: BoxFit.cover),
-                        Positioned(
-                          top: 4,
-                          right: 4,
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _bilder.removeAt(i); // Nur lokal löschen
-                              });
-                            },
-                            child: Container(
-                              decoration: const BoxDecoration(
-                                color: Colors.black54,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.remove, color: Colors.white, size: 20),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                ),
-          ),
-          Divider(height: 1),
-          Expanded(                               // untere Hälfte – Notizfeld
-            flex: 1,
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: TextField(
-                controller: _noteCtrl,
-                maxLines: null,                  // beliebig viele Zeilen
-                expands: true,                   // füllt gesamten Platz
-                decoration: InputDecoration(
-                  hintText: 'Notizen…',
-                  border: OutlineInputBorder(),
-                ),
-               // onChanged: (_) => _speichereAktuellenEintrag(),   // ← sofort speichern
-              ),
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _bildHinzufuegen,             // Bild aus Galerie wählen
-        child: Icon(Icons.add_photo_alternate),
-      ),
-      
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(8),
-        child: ElevatedButton(
-          onPressed: () async {
-            final hasNote = _noteCtrl.text.trim().isNotEmpty;
-            final hasImages = _bilder.where((f) => f.path.trim().isNotEmpty).isNotEmpty;
-            final hasContent = hasNote || hasImages;
-
-
-            final entry = DayEntry(
+    return StreamBuilder<List<DayEntry>>(
+      stream: DayRepo().watchEntries(widget.kategorie, widget.eventName),
+      builder: (context, snapshot) {
+        if (!_initialLoaded && snapshot.hasData) {
+          final entry = snapshot.data!.firstWhere(
+            (e) => e.datum == _dateKey,
+            orElse: () => DayEntry(
               kategorie: widget.kategorie,
               event: widget.eventName,
               datum: _dateKey,
-              title: _title,
-              note: _noteCtrl.text,
-              imagePaths: _bilder.map((f) => f.path).toList(),
-            );
+              title: '',
+              note: '',
+              imagePaths: [],
+            ),
+          );
 
-            print("Note: '${_noteCtrl.text}'");
-            print("Bilder: ${_bilder.length}");
+          _title = entry.title;
+          _noteCtrl.text = entry.note;
+          _bilder = entry.imagePaths.map((p) => File(p)).toList();
 
-
-            if (hasContent) {
-              await DayRepo().saveEntry(entry); // <-- nur noch Entry übergeben
-            } else {
-              await DayRepo().deleteEntry(widget.kategorie, widget.eventName, _dateKey);
-            }
-
-            Navigator.pop(context, true); // Kalender sofort neu zeichnen
-          },
-          child: const Text('Alles speichern'),
-        ),
-      ),
+          _initialLoaded = true; // danach nicht mehr überschreiben
+        }
 
 
+        // --- DEIN GANZER Scaffold-Code kommt HIER rein ---
+        return Scaffold(
+          appBar: AppBar(
+            title: GestureDetector(
+              onTap: _bearbeiteTitel,
+              child: Text(_title.isNotEmpty ? _title : 'Neuer Eintrag'),
+            ),
+            centerTitle: true,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.compare),
+                tooltip: 'Vergleichen',
+                onPressed: () async {
+                  final date = widget.selectedDate;
 
+                  final entries = await DayRepo()
+                      .watchEntries(widget.kategorie, widget.eventName)
+                      .first;
+
+                  if (entries.isEmpty) return;
+
+                  final startDatum = entries
+                      .map((e) => DateTime.tryParse(e.datum))
+                      .whereType<DateTime>()
+                      .toList()
+                    ..sort();
+
+                  if (startDatum.isEmpty) return;
+
+                  final relativerTag =
+                      date.difference(startDatum.first).inDays;
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => VergleichsAnsicht(
+                        aktuellesEventName: widget.eventName,
+                        kategorie: widget.kategorie,
+                        aktuellerTag: relativerTag,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+
+          body: Column(
+            children: [
+              Expanded(
+                flex: 1,
+                child: _bilder.isEmpty
+                    ? const Center(child: Text('Keine Bilder'))
+                    : GridView.builder(
+                        padding: const EdgeInsets.all(8),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          crossAxisSpacing: 4,
+                          mainAxisSpacing: 4,
+                        ),
+                        itemCount: _bilder.length,
+                        itemBuilder: (context, i) => Stack(
+                          children: [
+                            Image.file(_bilder[i], fit: BoxFit.cover),
+                            Positioned(
+                              top: 4,
+                              right: 4,
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _bilder.removeAt(i);
+                                  });
+                                },
+                                child: Container(
+                                  decoration: const BoxDecoration(
+                                    color: Colors.black54,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.remove,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                flex: 1,
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: TextField(
+                    controller: _noteCtrl,
+                    maxLines: null,
+                    expands: true,
+                    decoration: const InputDecoration(
+                      hintText: 'Notizen…',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          floatingActionButton: FloatingActionButton(
+            onPressed: _bildHinzufuegen,
+            child: const Icon(Icons.add_photo_alternate),
+          ),
+
+          bottomNavigationBar: Padding(
+            padding: const EdgeInsets.all(8),
+            child: ElevatedButton(
+              onPressed: () async {
+                final hasNote = _noteCtrl.text.trim().isNotEmpty;
+                final hasImages = _bilder.isNotEmpty;
+                final hasContent = hasNote || hasImages;
+
+                // Hole bestehenden Eintrag (falls vorhanden)
+                final existing = await DayRepo().getEntry(widget.kategorie, widget.eventName, _dateKey);
+
+                final entryToSave = DayEntry(
+                  kategorie: widget.kategorie,
+                  event: widget.eventName,
+                  datum: _dateKey,
+                  title: _title,
+                  note: _noteCtrl.text,
+                  imagePaths: _bilder.map((f) => f.path).toList(),
+                );
+
+                // WICHTIG: Setze die ID, wenn der Eintrag schon existiert!
+                if (existing != null) {
+                  entryToSave.id = existing.id;
+                }
+
+                if (hasContent) {
+                  await DayRepo().saveEntry(entryToSave);
+                } else {
+                  await DayRepo().deleteEntry(widget.kategorie, widget.eventName, _dateKey);
+                }
+
+                Navigator.pop(context, true);
+              },
+              child: const Text('Alles speichern'),
+            ),
+          ),
+        );
+      },
     );
   }
+
 }

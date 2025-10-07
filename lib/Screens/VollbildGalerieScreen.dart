@@ -67,7 +67,11 @@ class _VollbildGalerieScreenState extends State<VollbildGalerieScreen> {
                           selectedDate: DateTime.parse(entry.datum),
                         ),
                       ),
-                    );
+                    ).then((changed) {
+                      if (changed == true) {
+                        Navigator.pop(context, true); // VollbildGalerie meldet Änderung zurück an GalerieScreen
+                      }
+                    });
                     if (widget.onChanged != null) {
                       await widget.onChanged!(); // Bilder neu laden
                     }

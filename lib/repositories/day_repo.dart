@@ -135,4 +135,14 @@ class DayRepo {
 
   Stream<List<DayEntry>> watchEntries(String kategorie, String event) =>
       _isar.dayEntrys.filter().kategorieEqualTo(kategorie).eventEqualTo(event).watch(fireImmediately: true);
+  
+  Stream<DayEntry?> watchEntry(String kategorie, String event, String datum) {
+    return _isar.dayEntrys
+        .filter()
+        .kategorieEqualTo(kategorie)
+        .eventEqualTo(event)
+        .datumEqualTo(datum)
+        .watch(fireImmediately: true)
+        .map((list) => list.isNotEmpty ? list.first : null);
+  }
 }
