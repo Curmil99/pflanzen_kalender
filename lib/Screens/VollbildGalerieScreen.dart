@@ -56,7 +56,7 @@ class _VollbildGalerieScreenState extends State<VollbildGalerieScreen> {
                 top: 40,
                 right: 20,
                 child: IconButton(
-                  icon: const Icon(Icons.edit, color: Colors.white),
+                  icon: const Icon(Icons.edit, color: Colors.grey),
                   onPressed: () async {
                     await Navigator.push(
                       context,

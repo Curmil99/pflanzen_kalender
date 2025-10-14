@@ -124,6 +124,17 @@ class DayRepo {
     });
   }
 
+  Future<void> deleteKategorie(String kategorie) async {
+    allEntries.remove(kategorie); // Cache leeren
+
+    await _isar.writeTxn(() async {
+      await _isar.dayEntrys
+          .filter()
+          .kategorieEqualTo(kategorie)
+          .deleteAll();
+    });
+  }
+
 
 
   // ---------- Streams ----------

@@ -71,12 +71,11 @@ class _KategorieListeScreenState extends State<KategorieListeScreen> {
 
 
   void _showKategorieLoeschenDialog() {
-    final Set<String> auswahl = {}; // speichert aktuell markierte Kategorien
+    final Set<String> auswahl = {};
 
     showDialog(
       context: context,
       builder: (context) {
-        // StatefulBuilder umklammert den ganzen AlertDialog
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
@@ -90,7 +89,6 @@ class _KategorieListeScreenState extends State<KategorieListeScreen> {
                       value: auswahl.contains(kat),
                       onChanged: (bool? checked) {
                         setDialogState(() {
-                          // Dialog-STATE neu zeichnen
                           if (checked == true) {
                             auswahl.add(kat);
                           } else {
@@ -108,14 +106,16 @@ class _KategorieListeScreenState extends State<KategorieListeScreen> {
                   child: Text('Abbrechen'),
                 ),
                 ElevatedButton(
-                  // Button ist nur aktiv, wenn mindestens eine Kategorie ausgewählt ist
                   onPressed: auswahl.isEmpty
                       ? null
-                      : () {
-                          setState(() {
-                            kategorien.removeWhere((kat) => auswahl.contains(kat));
-                          });
-                          Navigator.pop(context); // Dialog schließen
+                      : () async {
+                          // 1. Alle markierten Kategorien aus der Datenbank löschen
+                          for (final kat in auswahl) {
+                            await DayRepo().deleteKategorie(kat);
+                          }
+                          // 2. Auch lokal aus der Liste entfernen, damit UI aktualisiert wird
+                          setState(() => kategorien.removeWhere(auswahl.contains));
+                          Navigator.pop(context);
                         },
                   child: Text('Löschen'),
                 ),
@@ -468,7 +468,7 @@ class _EventListeScreenState extends State<EventListeScreen> {
                       padding: const EdgeInsets.only(right: 8.0),
                       child: Text('$span', style: TextStyle(color: Colors.grey[700])),
                     ),
-                    IconButton(
+                    IconButton(  // Button zum Bilder hinzufügen
                       onPressed: () async {
                         await BilderHelper.addBilderZuEvent(
                           context: context,
@@ -489,10 +489,10 @@ class _EventListeScreenState extends State<EventListeScreen> {
                         ],
                       ),
                     ),
-                    IconButton(         //Button für Galerieansicht
+                    IconButton( // Button für Galerieansicht
                       icon: Icon(Icons.photo_library),
-                      onPressed: () {
-                        Navigator.push(
+                      onPressed: () async {
+                        final updated = await Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) => GalerieScreen(
@@ -501,11 +501,15 @@ class _EventListeScreenState extends State<EventListeScreen> {
                             ),
                           ),
                         );
+
+                        if (updated == true) {
+                          setState(() {}); // Ansicht neu laden
+                        }
                       },
                     ),
                   ],
                 ),
-                onTap: () {
+                onTap: () { // Zum Event-Detail-Screen navigieren
                   Navigator.push(
                     context,
                     MaterialPageRoute(
