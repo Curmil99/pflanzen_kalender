@@ -206,6 +206,9 @@ enum EventSortiermodus { alphabetisch, erstellungsdatum, laufzeit }
 class _EventListeScreenState extends State<EventListeScreen> {
   EventSortiermodus _sortiermodus = EventSortiermodus.erstellungsdatum;
 
+  bool _auswahlmodus = false;   // ob wir gerade mehrere Events zum Löschen markieren
+  Set<String> _markierteEvents = {};
+
   Map<EventSortiermodus, bool> _ascending = {
     EventSortiermodus.alphabetisch: true,
     EventSortiermodus.erstellungsdatum: true,
@@ -413,17 +416,36 @@ class _EventListeScreenState extends State<EventListeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('${widget.kategorie} Events'),
+        title: Text(_auswahlmodus
+            ? '${_markierteEvents.length} ausgewählt'
+            : '${widget.kategorie} Events'),
         actions: [
+          if (_auswahlmodus)
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: _markierteEvents.isEmpty
+                  ? null
+                  : () async {
+                      // 1. Alle markierten Events aus der Datenbank löschen
+                      for (final ev in _markierteEvents) {
+                        await DayRepo().deleteEvent(widget.kategorie, ev);
+                      }
+
+                      // 2. Auch lokal aus der Liste entfernen, damit UI aktualisiert wird
+                      setState(() => _events.removeWhere(_markierteEvents.contains));
+
+                      // 3. Auswahlmodus zurücksetzen
+                      _markierteEvents.clear();
+                      _auswahlmodus = false;
+                    },
+            ),
           PopupMenuButton<EventSortiermodus>(
             icon: Icon(Icons.sort),
             onSelected: (mod) {
               setState(() {
                 if (_sortiermodus == mod) {
-                  // Klick auf gleichen Modus → Reihenfolge umdrehen
                   _ascending[mod] = !_ascending[mod]!;
                 } else {
-                  // neuer Modus → Standard-Reihenfolge verwenden
                   _sortiermodus = mod;
                 }
               });
@@ -461,7 +483,21 @@ class _EventListeScreenState extends State<EventListeScreen> {
 
               return ListTile(
                 title: Text(eventName),
-                trailing: Row(
+                trailing: _auswahlmodus
+                    ? Checkbox(
+                        value: _markierteEvents.contains(eventName),
+                        onChanged: (val) {
+                          setState(() {
+                            if (val == true) {
+                              _markierteEvents.add(eventName);
+                            } else {
+                              _markierteEvents.remove(eventName);
+                              if (_markierteEvents.isEmpty) _auswahlmodus = false;
+                            }
+                          });
+                        },
+                      )
+                    : Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Padding(
@@ -510,6 +546,16 @@ class _EventListeScreenState extends State<EventListeScreen> {
                   ],
                 ),
                 onTap: () { // Zum Event-Detail-Screen navigieren
+                  if (_auswahlmodus) {
+                    setState(() {
+                      if (_markierteEvents.contains(eventName)) {
+                        _markierteEvents.remove(eventName);
+                        if (_markierteEvents.isEmpty) _auswahlmodus = false;
+                      } else {
+                        _markierteEvents.add(eventName);
+                      }
+                    });
+                  } else {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -521,8 +567,15 @@ class _EventListeScreenState extends State<EventListeScreen> {
                   ).then((modified) {
                     if (modified == true) setState(() {});
                   });
-                },
-              );
+                }
+              },
+              onLongPress: () {
+                setState(() {
+                  _auswahlmodus = true;
+                  _markierteEvents.add(eventName);
+                });
+              },
+            );
             },
           );
         },
