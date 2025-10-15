@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:collection/collection.dart'; // für firstWhereOrNull
 import '../repositories/day_repo.dart';
 import '../models/day_entry.dart';
 import '../Screens/VollbildGalerieScreen.dart';
@@ -117,11 +116,15 @@ class _GalerieScreenState extends State<GalerieScreen> {
       content: Text(
         _markierteBilder.length == 1
             ? 'Willst du dieses Bild wirklich löschen?'
+              '${zuLoeschendeEintraege > 0
+                ? '\nMit dem Löschen wird auch $zuLoeschendeEintraege Eventeintrag vollständig gelöscht.'
+                : ''}'
             : 'Du hast ${_markierteBilder.length} Bilder ausgewählt.'
               '${zuLoeschendeEintraege > 0
                 ? '\nMit dem Löschen werden auch $zuLoeschendeEintraege Eventeinträge vollständig gelöscht.'
                 : ''}'
       ),
+
       actions: [
         TextButton(
             onPressed: () => Navigator.pop(context, false),

@@ -2,8 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/day_entry.dart';
 import '../day_detail_screen.dart';
-import 'package:collection/collection.dart'; // Für firstWhereOrNull (Wenn kein Eintrag gefunden wird, crash die App nicht Zeile: 54)
-import '../Screens/galerie_screen.dart';
 
 class VollbildGalerieScreen extends StatefulWidget {
   final List<String> bilder;
