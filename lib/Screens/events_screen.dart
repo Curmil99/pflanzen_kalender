@@ -4,6 +4,7 @@ import '../event_detail_screen.dart';
 import '../../repositories/day_repo.dart'; 
 import '../../utils/bilder_hinzufuegen.dart'; // Import hinzufügen
 import '../../Screens/galerie_screen.dart';
+import '../../Screens/notizen_screen.dart';
 
 
 
@@ -350,6 +351,7 @@ class _EventListeScreenState extends State<EventListeScreen> {
                     ),
                     IconButton( // Button für Galerieansicht
                       icon: Icon(Icons.photo_library),
+                      tooltip: 'Gallerie aller Bilder',
                       onPressed: () async {
                         final updated = await Navigator.push(
                           context,
@@ -363,6 +365,26 @@ class _EventListeScreenState extends State<EventListeScreen> {
 
                         if (updated == true) {
                           setState(() {}); // Ansicht neu laden
+                        }
+                      },
+                    ),
+                    // 📝 Button für Notizenansicht
+                    IconButton(
+                      icon: const Icon(Icons.note_alt_outlined), // modernes Notiz-Icon
+                      tooltip: 'Alle Notizen anzeigen',
+                      onPressed: () async {
+                        final updated = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => NotizenScreen(
+                              kategorie: widget.kategorie,
+                              eventName: eventName,
+                            ),
+                          ),
+                        );
+
+                        if (updated == true) {
+                          setState(() {}); // Ansicht aktualisieren, falls nötig
                         }
                       },
                     ),
