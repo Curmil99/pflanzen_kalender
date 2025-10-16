@@ -60,7 +60,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   Stream<List<DayEntry>> _getAndereEventEintraegeStream(DateTime date) {
     switch (_currentViewMode) {
       case CalendarViewMode.nurAktuellesEvent:
-        return Stream.value([]); // leere Liste als Stream
+        return getAktuellesEventVorjahreStream(date); 
       case CalendarViewMode.aktuelleAnsicht:
         return getAndereEventsAktuellesJahrStream(date);
       case CalendarViewMode.vorjahreImMonat:
@@ -88,8 +88,36 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
 
-  //Hier werden die anderen Tage rausgesucht, die aus den anderen Events
+  Stream<List<DayEntry>> getAktuellesEventVorjahreStream(DateTime viewDate) {
+    final int ansichtsJahr = viewDate.year;
+    final int monat = viewDate.month;
+    final int tag = viewDate.day;
 
+    return DayRepo().watchEntries(widget.kategorie, widget.eventName).map((entries) {
+      final result = <DayEntry>[];
+
+      for (var entry in entries) {
+        final date = DateTime.tryParse(entry.datum);
+        if (date == null) continue;
+
+        // Filter: nur Einträge aus Vorjahren am gleichen Tag/Monat
+        if (date.year >= ansichtsJahr) continue;
+        if (date.month != monat || date.day != tag) continue;
+
+        // Nur Einträge mit Inhalt
+        if (entry.title.isEmpty && entry.note.isEmpty && entry.imagePaths.isEmpty) continue;
+
+        result.add(entry);
+      }
+
+      // Älteste zuerst sortieren
+      result.sort((a, b) => a.datum.compareTo(b.datum));
+
+      return result;
+    });
+  }
+
+  //Hier werden die anderen Tage rausgesucht, die aus den anderen Events sind
   Stream<List<DayEntry>> getAndereEventsAktuellesJahrStream(DateTime date) {
     final dateKey = _keyFmt.format(date);
 
@@ -257,7 +285,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                             current.note.isNotEmpty ||
                             current.imagePaths.isNotEmpty))
                       _badge(
-                          current.title.isNotEmpty ? current.event : '',
+                          _currentViewMode == CalendarViewMode.nurAktuellesEvent
+                            ? DateTime.parse(current.datum).year.toString() // nur Jahr
+                            : current.event,
                           Colors.green.shade400,
                           Colors.white),
                     for (final e in finalAndere)
@@ -280,7 +310,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                             }
                           },
                           child: _badge(
-                            e.event,
+                            _currentViewMode == CalendarViewMode.nurAktuellesEvent  //Bei nur aktuelles Event wird das Jahr und nicht der Eventname angezeigt
+                              ? DateTime.parse(e.datum).year.toString()
+                              : e.event,
                             Colors.green.shade200,
                             Colors.black87,
                           ),
