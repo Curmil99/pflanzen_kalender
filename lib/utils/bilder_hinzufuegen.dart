@@ -100,7 +100,7 @@ class BilderHelper {
 
       // Titel fallback: Datum, wenn leer
       final dateParts = entryDate.split("-");
-      final formattedDate = dateParts[0]; // nur Jahr
+      final formattedDate = "${dateParts[2]}.${dateParts[1]}.${dateParts[0]}";
 
       final entry = DayEntry(
         kategorie: kategorie,

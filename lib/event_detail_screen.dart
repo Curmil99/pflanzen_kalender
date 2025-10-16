@@ -257,7 +257,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                             current.note.isNotEmpty ||
                             current.imagePaths.isNotEmpty))
                       _badge(
-                          current.title.isNotEmpty ? current.title : '',
+                          current.title.isNotEmpty ? current.event : '',
                           Colors.green.shade400,
                           Colors.white),
                     for (final e in finalAndere)
@@ -280,7 +280,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                             }
                           },
                           child: _badge(
-                            e.title,
+                            e.event,
                             Colors.green.shade200,
                             Colors.black87,
                           ),

@@ -25,6 +25,7 @@ class DayDetailScreen extends StatefulWidget {
 
 class _DayDetailScreenState extends State<DayDetailScreen> {
   late final String _dateKey;
+  late final String _formattedDate; // Für Anzeige (TT.MM.JJJJ)
   late String _title = '' ;
   List<File> _bilder = [];
   final TextEditingController _noteCtrl = TextEditingController();
@@ -38,6 +39,10 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     _dateKey =
         '${widget.selectedDate.year}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.day.toString().padLeft(2, '0')}';
 
+    // 👉 Neues Format für Anzeige (TT.MM.JJJJ)
+    _formattedDate = 
+    '${widget.selectedDate.day.toString().padLeft(2, '0')}.${widget.selectedDate.month.toString().padLeft(2, '0')}.${widget.selectedDate.year}';
+    
     
   }
 
@@ -46,17 +51,24 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   Future<void> _saveEntry() async {
     final existing = await DayRepo().getEntry(widget.kategorie, widget.eventName, _dateKey);
 
+    String finalTitle = _title;
+
+    // Falls der Titel aktuell nur das Datum ist oder leer → nimm Event-Namen
+    if (finalTitle.trim().isEmpty || finalTitle == _formattedDate) {
+      finalTitle = widget.eventName;
+    }
+
     final updated = existing ??
         DayEntry(
           kategorie: widget.kategorie,
           event: widget.eventName,
           datum: _dateKey,
-          title: '',
+          title: finalTitle,
           note: '',
           imagePaths: [],
         );
 
-    updated.title = _title;
+    updated.title = finalTitle;
     updated.note = _noteCtrl.text;
     updated.imagePaths = _bilder.map((f) => f.path).toList();
 
@@ -160,8 +172,15 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
               imagePaths: [],
             ),
           );
+          
+          // Wenn kein Titel gespeichert ist → Platzhalter setzen (Datum)
+          if (entry.title.trim().isEmpty) {
+            _title = _formattedDate; // Anzeige: z. B. 15.10.2025
+          } else {
+            _title = entry.title; // bereits gespeicherter Titel
+          }
 
-          _title = entry.title;
+          
           _noteCtrl.text = entry.note;
           _bilder = entry.imagePaths.map((p) => File(p)).toList();
 
@@ -174,7 +193,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           appBar: AppBar(
             title: GestureDetector(
               onTap: _bearbeiteTitel,
-              child: Text(_title.isNotEmpty ? _title : 'Neuer Eintrag'),
+              child: Text(_title.isNotEmpty ? _title : _formattedDate),
             ),
             centerTitle: true,
             actions: [
