@@ -33,6 +33,7 @@ class VergleichsAnsicht extends StatefulWidget {
 
   @override
   State<VergleichsAnsicht> createState() => _VergleichsAnsichtState();
+  
 }
 
 class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
@@ -41,6 +42,8 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
   late VergleichsModus modus;
   late VergleichsEventModus eventModus;
   late Future<List<Vergleichseintrag>> vergleichseintraegeFuture;
+  int tageIntervall = 365;
+
 
   @override
   void initState() {
@@ -83,7 +86,7 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
   }
 
 
-  Future<List<Vergleichseintrag>> _loadVergleichsdaten({bool initialLoad = false}) async {
+  Future<List<Vergleichseintrag>> _loadVergleichsdaten({bool initialLoad = false, int intervall = 365}) async {
     final result = <Vergleichseintrag>[];
     
     
@@ -142,9 +145,9 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
     currentEntries.sort((a, b) => a.datum.compareTo(b.datum));
 
     // Jahr des Haupteintrags bestimmen
-  final List<DateTime> zielDaten = [];
+    final List<DateTime> zielDaten = [];
 
-    const int tageIntervall = 365;
+    int tageIntervall = intervall;
     const int maxIntervalle = 5; // prüfe bis zu 5 Intervalle rückwärts
 
     // Hauptdatum, z.B. 15.8.2023
@@ -321,6 +324,47 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
     });
   }
 
+  void _showIntervallDialog() async {
+    final TextEditingController controller = TextEditingController(text: tageIntervall.toString());
+    final int? newInterval = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Tage Intervall setzen'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Intervall in Tagen',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(), // Abbrechen
+              child: const Text('Abbrechen'),
+            ),
+            TextButton(
+              onPressed: () {
+                final value = int.tryParse(controller.text);
+                Navigator.of(context).pop(value);
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (newInterval != null && newInterval > 0 && newInterval != tageIntervall) {
+      setState(() {
+    tageIntervall = newInterval;
+    vergleichseintraegeFuture = _loadVergleichsdaten(intervall: tageIntervall);
+      });
+      
+    }
+
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -361,6 +405,13 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
                             });
                           },
                         ),
+                        if (eventModus == VergleichsEventModus.solo)
+                          IconButton(
+                            icon: const Icon(Icons.timer),
+                            tooltip: 'Intervall ändern',
+                            onPressed: _showIntervallDialog,
+                          ),
+                        
                       ],
                     ),
                     Text(
@@ -447,7 +498,7 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
                                 );
                               }
 
-                              const int interval = 365;
+                              final int interval = tageIntervall;
 
                               // Das nächstliegende oder vorherige Vielfache von 365, das kleiner oder gleich relativeTag ist
                               final int ideal = ( (relativeTag / interval).round() ) * interval;
