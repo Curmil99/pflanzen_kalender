@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import '../models/Nerv1.dart';
+import 'models/vergleichseintrag.dart';
 
 class DirektVergleichAnsicht extends StatefulWidget {
   final Vergleichseintrag aktuellerEintrag;
@@ -65,7 +65,7 @@ class _DirektVergleichAnsichtState extends State<DirektVergleichAnsicht> {
                         value: _topEntry,
                         isExpanded: true,
                         items: alleEintraege.map((e) {
-                          String label = e.eventName;
+                          String label = e.label;
                           if (e == _bottomEntry) label += " (unten)";
                           return DropdownMenuItem(
                             value: e,
@@ -164,7 +164,7 @@ class _DirektVergleichAnsichtState extends State<DirektVergleichAnsicht> {
                         value: _bottomEntry,
                         isExpanded: true,
                         items: alleEintraege.map((e) {
-                          String label = e.eventName;
+                          String label = e.label;
                           if (e == _topEntry) label += " (oben)";
                           return DropdownMenuItem(
                             value: e,

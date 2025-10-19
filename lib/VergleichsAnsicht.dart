@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../repositories/day_repo.dart';
 import '../models/day_entry.dart';
 import 'direkt_vergleich_nsicht.dart';
-import '../models/Nerv1.dart'; // Vergleichseintrag
+import 'models/vergleichseintrag.dart'; // Vergleichseintrag
 
 enum VergleichsModus { relativ, datum }
 
@@ -20,6 +20,7 @@ class VergleichsAnsicht extends StatefulWidget {
   final int? startIndex;
   final VergleichsModus modus;  //relativ oder datum
   final VergleichsEventModus eventModus;  //solo oder group
+  final String label;
 
   const VergleichsAnsicht({
     super.key,
@@ -29,6 +30,7 @@ class VergleichsAnsicht extends StatefulWidget {
     this.startIndex,
     this.modus = VergleichsModus.datum,
     this.eventModus = VergleichsEventModus.group,
+    this.label = '',
   });
 
   @override
@@ -125,17 +127,29 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
 
     final hauptDatumEntry = currentEntries[hauptIndex];
     final hauptDatum = DateTime.tryParse(hauptDatumEntry.datum)!;
+    
 
     // Berechne relativen Tag
-    final hauptStart = _getStartDatumFromList(currentEntries);
-    final hauptRelativeDays = hauptStart != null ? hauptDatum.difference(hauptStart).inDays : 0;
+    final hauptRelativeDays =hauptDatum.difference(hauptDatum).inDays;
 
+    final int relativeTag = hauptRelativeDays; // tatsächlicher Offset
+    final int interval = tageIntervall;
+    final int ideal = ((relativeTag / interval).round()) * interval;
+    final int differenz = relativeTag - ideal;
+    final String diffString = differenz == 0
+        ? ''
+        : (differenz > 0 ? ' (+$differenz)' : ' ($differenz)');
     
     result.add(Vergleichseintrag(
       eventName: hauptEventName,
       tag: hauptRelativeDays,
       eintrag: hauptDatumEntry,
-    ));
+      label: widget.label.isNotEmpty
+      ? widget.label
+      : (eventModus == VergleichsEventModus.solo
+          ? '$ideal Tage$diffString'
+          : hauptEventName),
+));
 
     // 🔸 NEU: Ab hier prüfen, ob Solo-Modus aktiv ist
     // 🔸 NEU: Solo-Modus mit Tagesabstand
@@ -180,16 +194,26 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
 
       if (closest != null) {
         final d = DateTime.tryParse(closest.datum)!;
-        final rel = hauptStart != null ? d.difference(hauptStart).inDays : 0;
+        final rel = d.difference(hauptDatum).inDays;
 
         // Vermeide Duplikate oder Haupteintrag nochmal
-        if (closest != hauptDatumEntry && !result.any((e) => e.eintrag == closest)) {
+        
+          // Label individuell berechnen:
+                          // Hauptbild ist die 0-Referenz
+          final int relativeTag = rel;          // Abstand dieses Eintrags zur Basis
+          final int interval = tageIntervall;
+          final int ideal = ((relativeTag / interval).round()) * interval;
+          final int differenz = relativeTag - ideal;
+          final String diffString =
+              differenz == 0 ? '' : (differenz > 0 ? ' (+$differenz)' : ' ($differenz)');          
+
           result.add(Vergleichseintrag(
             eventName: hauptEventName,
             tag: rel,
             eintrag: closest,
+            label: '$ideal Tage$diffString', // <-- jetzt individuell!
           ));
-        }
+        
       }
     }
     return result;
@@ -235,10 +259,42 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
       }
 
       result.add(Vergleichseintrag(
-          eventName: kv.key, tag: relativeTag, eintrag: chosen));
+        eventName: kv.key,
+        tag: relativeTag,
+        eintrag: chosen,
+        label: kv.key,
+      ));
+    }
+    for (var i = 0; i < result.length; i++) {
+      result[i] = Vergleichseintrag(
+        eventName: result[i].eventName,
+        tag: result[i].tag,
+        eintrag: result[i].eintrag,
+        label: _berechneLabel(result[i], result, tageIntervall, eventModus),
+      );
     }
 
     return result;
+  }
+
+  String _berechneLabel(Vergleichseintrag eintrag, List<Vergleichseintrag> alle, int tageIntervall, VergleichsEventModus eventModus) {
+    if (eventModus == VergleichsEventModus.solo) {
+        final hauptEintrag = alle.firstWhere(
+          (e) => e.eventName == hauptEventName,
+          orElse: () => alle[0],
+        );
+        final int relativeTag = eintrag.tag - hauptEintrag.tag;
+        if (relativeTag == 0) return '0 Tage';
+        final int interval = tageIntervall;
+        final int ideal = ((relativeTag / interval).round()) * interval;
+        final int differenz = relativeTag - ideal;
+        final String diffString = differenz == 0
+            ? ''
+            : (differenz > 0 ? ' (+$differenz)' : ' ($differenz)');
+      return '$ideal Tage$diffString';
+    } else {
+      return eintrag.eventName;
+    }
   }
 
 
@@ -365,6 +421,46 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
 
   }
 
+  //Für vollbildanzeige
+  void _showImageViewer(BuildContext context, List<String> imagePaths, int initialIndex) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) {
+        PageController controller = PageController(initialPage: initialIndex);
+
+        return Dialog(
+          insetPadding: EdgeInsets.zero,
+          backgroundColor: Colors.black,
+          child: Stack(
+            children: [
+              PageView.builder(
+                controller: controller,
+                itemCount: imagePaths.length,
+                itemBuilder: (_, index) {
+                  return InteractiveViewer(
+                    child: Image.file(
+                      File(imagePaths[index]),
+                      fit: BoxFit.contain,
+                    ),
+                  );
+                },
+              ),
+              Positioned(
+                top: 30,
+                right: 20,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -429,10 +525,10 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: const [
-                        Text('Solo',
+                        Text('Group',
                             style: TextStyle(color: Colors.white70, fontSize: 12)),
                         SizedBox(height: 4),
-                        Text('Group',
+                        Text('Solo',
                             style: TextStyle(color: Colors.white70, fontSize: 12)),
                       ],
                     ),
@@ -486,37 +582,45 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Builder(
-                            builder: (_) {
-                              final int baseTag = vergleichseintraege.isNotEmpty ? vergleichseintraege[0].tag : 0;
-                              final int relativeTag = eintrag.tag - baseTag;
+                          
+                          eventModus == VergleichsEventModus.solo
+                            ? Builder(
+                              builder: (_) {
+                                final int baseTag = vergleichseintraege.isNotEmpty ? vergleichseintraege[0].tag : 0;
+                                final int relativeTag = eintrag.tag - baseTag;
 
-                              if (relativeTag == 0) {
-                                return const Text(
-                                  '0 Tage',
-                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                if (relativeTag == 0) {
+                                  return const Text(
+                                    '0 Tage',
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                  );
+                                }
+
+                                final int interval = tageIntervall;
+
+                                // Das nächstliegende oder vorherige Vielfache von 365, das kleiner oder gleich relativeTag ist
+                                final int ideal = ( (relativeTag / interval).round() ) * interval;
+
+
+                                final int differenz = relativeTag - ideal;
+
+                                final String diffString = differenz == 0
+                                    ? ''
+                                    : (differenz > 0 ? ' (+$differenz)' : ' ($differenz)');
+
+                                return Text(
+                                  '$ideal Tage$diffString',
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                                 );
-                              }
-
-                              final int interval = tageIntervall;
-
-                              // Das nächstliegende oder vorherige Vielfache von 365, das kleiner oder gleich relativeTag ist
-                              final int ideal = ( (relativeTag / interval).round() ) * interval;
-
-
-                              final int differenz = relativeTag - ideal;
-
-                              final String diffString = differenz == 0
-                                  ? ''
-                                  : (differenz > 0 ? ' (+$differenz)' : ' ($differenz)');
-
-                              return Text(
-                                '$ideal Tage$diffString',
-                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                              );
-                            },
+                              },
+                          )
+                        : Text(
+                            eintrag.eventName,
+                            style: const TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.bold),
                           ),
-                          Text('Tag ${eintrag.tag + 1}'),
+                        
+                        Text('Tag ${eintrag.tag + 1}'),
                         ],
                       ),
 
@@ -555,11 +659,14 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
                             itemBuilder: (_, imgIndex) {
                               return Padding(
                                 padding: const EdgeInsets.only(right: 8.0),
-                                child: Image.file(
-                                  File(eintrag.eintrag.imagePaths[imgIndex]),
-                                  width: 100,
-                                  height: 100,
-                                  fit: BoxFit.cover,
+                                child: GestureDetector(
+                                  onTap: () => _showImageViewer(context, eintrag.eintrag.imagePaths, imgIndex),
+                                  child: Image.file(
+                                    File(eintrag.eintrag.imagePaths[imgIndex]),
+                                    width: 100,
+                                    height: 100,
+                                    fit: BoxFit.cover,
+                                  ),
                                 ),
                               );
                             },
@@ -577,9 +684,21 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
         onPressed: () async {
           final vergleichseintraege = await vergleichseintraegeFuture;
           if (vergleichseintraege.length < 2) return;
+
           final aktueller = vergleichseintraege.first;
-          final List<Vergleichseintrag> vergleichsEintraege =
-              vergleichseintraege.where((e) => e.eventName != aktueller.eventName).toList();
+          List<Vergleichseintrag> vergleichsEintraege;
+
+          if (eventModus == VergleichsEventModus.solo) {
+            // Im Solo‑Modus sollen alle Einträge (außer dem aktuellen) verglichen werden
+            vergleichsEintraege =
+                vergleichseintraege.where((e) => e != aktueller).toList();
+          } else {
+            // Im Gruppenmodus wie bisher: nur andere Events
+            vergleichsEintraege =
+                vergleichseintraege.where((e) => e.eventName != aktueller.eventName).toList();
+          }
+
+          if (vergleichsEintraege.isEmpty) return;
 
           Navigator.push(
             context,
@@ -593,6 +712,7 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
         },
         child: const Icon(Icons.compare_arrows),
       ),
+
     );
   }
 }
