@@ -21,6 +21,7 @@ class VergleichsAnsicht extends StatefulWidget {
   final VergleichsModus modus;  //relativ oder datum
   final VergleichsEventModus eventModus;  //solo oder group
   final String label;
+  
 
   const VergleichsAnsicht({
     super.key,
@@ -31,6 +32,7 @@ class VergleichsAnsicht extends StatefulWidget {
     this.modus = VergleichsModus.datum,
     this.eventModus = VergleichsEventModus.group,
     this.label = '',
+    
   });
 
   @override
@@ -45,6 +47,7 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
   late VergleichsEventModus eventModus;
   late Future<List<Vergleichseintrag>> vergleichseintraegeFuture;
   int tageIntervall = 365;
+  final Set<int> _fixedIDs = {};
 
 
   @override
@@ -88,7 +91,11 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
   }
 
 
-  Future<List<Vergleichseintrag>> _loadVergleichsdaten({bool initialLoad = false, int intervall = 365}) async {
+  Future<List<Vergleichseintrag>> _loadVergleichsdaten({
+    bool initialLoad = false,
+    int intervall = 365,
+    List<Vergleichseintrag>? prevResult, // 🆕
+  }) async {
     final result = <Vergleichseintrag>[];
     
     
@@ -149,24 +156,18 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
       : (eventModus == VergleichsEventModus.solo
           ? '$ideal Tage$diffString'
           : hauptEventName),
-));
+    ));
 
     // 🔸 NEU: Ab hier prüfen, ob Solo-Modus aktiv ist
-    // 🔸 NEU: Solo-Modus mit Tagesabstand
-   // 🔸 NEU: Solo-Modus prüfen
     if (eventModus == VergleichsEventModus.solo) {
-    // Nur Einträge dieses Events (aus anderen Jahren)
-    currentEntries.sort((a, b) => a.datum.compareTo(b.datum));
+      // Nur Einträge dieses Events (aus anderen Jahren)
+      currentEntries.sort((a, b) => a.datum.compareTo(b.datum));
 
-    // Jahr des Haupteintrags bestimmen
-    final List<DateTime> zielDaten = [];
-
-    int tageIntervall = intervall;
-    const int maxIntervalle = 5; // prüfe bis zu 5 Intervalle rückwärts
-
-    // Hauptdatum, z.B. 15.8.2023
-    final hauptDatum = DateTime.tryParse(hauptDatumEntry.datum)!;
-
+      final List<DateTime> zielDaten = [];
+      int tageIntervall = intervall;
+      const int maxIntervalle = 5;
+      final hauptDatum = DateTime.tryParse(hauptDatumEntry.datum)!;
+      
     // Wir prüfen Intervalle rückwärts: z.B. 0-365 Tage zurück, 366-730 Tage zurück usw.
     for (int i = 1; i <= maxIntervalle; i++) {
       // Intervall Grenzwerte in Tagen rückwärts
@@ -192,29 +193,62 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
     for (final zielDatum in zielDaten) {
       final closest = _findClosestEntryInList(currentEntries, zielDatum);
 
-      if (closest != null) {
-        final d = DateTime.tryParse(closest.datum)!;
-        final rel = d.difference(hauptDatum).inDays;
+      if (closest == null) continue;
+      
+      final d = DateTime.tryParse(closest.datum)!;
+      final rel = d.difference(hauptDatum).inDays;
 
-        // Vermeide Duplikate oder Haupteintrag nochmal
-        
-          // Label individuell berechnen:
-                          // Hauptbild ist die 0-Referenz
-          final int relativeTag = rel;          // Abstand dieses Eintrags zur Basis
+      // ID des Kandidaten (kann 0 sein, wenn Placeholder) 
+      final candidateId = closest.id;
+
+      // Wenn die ID im Set ist → fixiert. Falls prevResult ein Vergleichseintrag dazu enthält, wiederverwenden.
+      if (candidateId != 0 && _fixedIDs.contains(candidateId)) {
+        // versuche prevResult wiederzuverwenden, falls vorhanden
+        Vergleichseintrag? reused;
+        if (prevResult != null) {
+          try {
+            reused = prevResult.firstWhere((p) => p.eintrag.id == candidateId);
+          } catch (_) {
+            reused = null;
+          }
+        }
+        if (reused != null) {
+          result.add(reused);
+          continue;
+        } else {
+          // Erstelle neuen Vergleichseintrag, markiere fixiert
+          final int relativeTag = rel;
           final int interval = tageIntervall;
           final int ideal = ((relativeTag / interval).round()) * interval;
           final int differenz = relativeTag - ideal;
-          final String diffString =
-              differenz == 0 ? '' : (differenz > 0 ? ' (+$differenz)' : ' ($differenz)');          
+          final String diffString = differenz == 0 ? '' : (differenz > 0 ? ' (+$differenz)' : ' ($differenz)');
 
-          result.add(Vergleichseintrag(
+                result.add(Vergleichseintrag(
             eventName: hauptEventName,
             tag: rel,
             eintrag: closest,
-            label: '$ideal Tage$diffString', // <-- jetzt individuell!
+            label: '$ideal Tage$diffString',
           ));
-        
+          // markiere in-memory (Checkbox nutzt _fixedIDs)
+          continue;
+        }
       }
+
+      // kein fixierter Eintrag → normal hinzufügen
+      final int relativeTag = rel;
+      final int interval = tageIntervall;
+      final int ideal = ((relativeTag / interval).round()) * interval;
+      final int differenz = relativeTag - ideal;
+      final String diffString = differenz == 0 ? '' : (differenz > 0 ? ' (+$differenz)' : ' ($differenz)');
+
+      result.add(Vergleichseintrag(
+        eventName: hauptEventName,
+        tag: rel,
+        eintrag: closest,
+        label: '$ideal Tage$diffString',
+      ));
+       
+      
     }
     return result;
   } 
@@ -227,14 +261,33 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
 
     // 2) Andere Events laden
     final alleEntries = await DayRepo().watchByKategorie(widget.kategorie).first;
-    final grouped = <String, List<DayEntry>>{};
-    for (var e in alleEntries) {
-      grouped.putIfAbsent(e.event, () => []);
-      grouped[e.event]!.add(e);
-    }
+  final grouped = <String, List<DayEntry>>{};
+  for (var e in alleEntries) {
+    grouped.putIfAbsent(e.event, () => []);
+    grouped[e.event]!.add(e);
+  }
 
-    for (var kv in grouped.entries) {
-      if (kv.key == hauptEventName) continue;
+  for (var kv in grouped.entries) {
+    if (kv.key == hauptEventName) continue;
+
+    // 🆕 Fixierungsprüfung:
+    Vergleichseintrag? prevFixed;
+      if (prevResult != null) {
+        for (final p in prevResult) {
+          if (_fixedIDs.contains(p.eintrag.id) && p.eventName == kv.key) {
+            prevFixed = p;
+            break;
+          }
+        }
+      }
+
+      if (prevFixed != null) {
+        // 🧊 Fixierter Eintrag -> beibehalten
+        result.add(prevFixed);
+        continue;
+      }
+
+      // Normaler Ablauf (nicht fixiert)
       final startDatum = _getStartDatumFromList(kv.value);
       if (startDatum == null) continue;
 
@@ -265,6 +318,8 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
         label: kv.key,
       ));
     }
+
+
     for (var i = 0; i < result.length; i++) {
       result[i] = Vergleichseintrag(
         eventName: result[i].eventName,
@@ -332,33 +387,43 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
     return closest;
   }
 
-  void _onArrowPressed(bool forward, Vergleichseintrag eintrag) async {
-    final entries = await DayRepo().watchEntries(widget.kategorie, eintrag.eventName).first;
-    if (entries.isEmpty) return;
+  // 🔹 Teil 3: Anpassung _onArrowPressed()
+// Übergibt die aktuelle Liste an _loadVergleichsdaten(prevResult: ...)
+void _onArrowPressed(bool forward, Vergleichseintrag eintrag) async {
+  final entries =
+      await DayRepo().watchEntries(widget.kategorie, eintrag.eventName).first;
+  if (entries.isEmpty) return;
 
-    entries.sort((a, b) => a.datum.compareTo(b.datum));
+  entries.sort((a, b) => a.datum.compareTo(b.datum));
 
-    if (eintrag.eventName == hauptEventName) {
-      int newIdx = forward ? min(hauptIndex + 1, entries.length - 1) : max(hauptIndex - 1, 0);
-      setState(() {
-        hauptIndex = newIdx;
-        vergleichseintraegeFuture = _loadVergleichsdaten();
-      });
-    } else {
-      // Klick auf Nebenevent -> neues HauptEvent
-      int idx = 0;
-      final entryDate = DateTime.tryParse(eintrag.eintrag.datum);
-      if (entryDate != null) {
-        idx = entries.indexWhere((e) => _isSameDay(DateTime.tryParse(e.datum)!, entryDate));
-        if (idx == -1) idx = 0;
-      }
-      setState(() {
-        hauptEventName = eintrag.eventName;
-        hauptIndex = idx;
-        vergleichseintraegeFuture = _loadVergleichsdaten();
-      });
+  // aktuelle Vergleichsdaten abrufen, bevor sie überschrieben werden
+  final prevResult = await vergleichseintraegeFuture;
+
+  if (eintrag.eventName == hauptEventName) {
+    int newIdx =
+        forward ? min(hauptIndex + 1, entries.length - 1) : max(hauptIndex - 1, 0);
+    setState(() {
+      hauptIndex = newIdx;
+      vergleichseintraegeFuture =
+          _loadVergleichsdaten(prevResult: prevResult); // 🆕 Übergabe hier
+    });
+  } else {
+    int idx = 0;
+    final entryDate = DateTime.tryParse(eintrag.eintrag.datum);
+    if (entryDate != null) {
+      idx = entries.indexWhere(
+          (e) => _isSameDay(DateTime.tryParse(e.datum)!, entryDate));
+      if (idx == -1) idx = 0;
     }
+    setState(() {
+      hauptEventName = eintrag.eventName;
+      hauptIndex = idx;
+      vergleichseintraegeFuture =
+          _loadVergleichsdaten(prevResult: prevResult); // 🆕 Übergabe hier
+    });
   }
+}
+
 
   void _onMakeEventMain(Vergleichseintrag eintrag) async {
     final entries = await DayRepo().watchEntries(widget.kategorie, eintrag.eventName).first;
@@ -517,7 +582,7 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
                   ],
                 ),
 
-                // ---- RECHTS: Solo / Group Switch ----
+                // ---- Solo / Group Switch Button----
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
@@ -619,7 +684,24 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
                             style: const TextStyle(
                                 fontSize: 16, fontWeight: FontWeight.bold),
                           ),
-                        
+                          Row(
+                            children: [
+                              const Text("Fixieren"),
+                              Checkbox(
+                                value: _fixedIDs.contains(eintrag.eintrag.id),
+                                onChanged: (val) {
+                                  setState(() {
+                                    if (val == true) {
+                                      _fixedIDs.add(eintrag.eintrag.id);
+                                    } else {
+                                      _fixedIDs.remove(eintrag.eintrag.id);
+                                    }
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                                             
                         Text('Tag ${eintrag.tag + 1}'),
                         ],
                       ),
