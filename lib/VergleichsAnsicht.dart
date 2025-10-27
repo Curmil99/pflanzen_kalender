@@ -98,6 +98,11 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
   }) async {
     final result = <Vergleichseintrag>[];
     
+    debugPrint('=== _loadVergleichsdaten START ===');
+    debugPrint('eventModus=$eventModus, modus=$modus, hauptEventName=$hauptEventName, hauptIndex=$hauptIndex');
+    debugPrint('fixed IDs at load start: ${_fixedIDs.toList()}');
+    debugPrint('prevResult IDs: ${prevResult?.map((p) => p.eintrag.id).toList()}');
+
     
     // 1) Hauptevent laden
     final currentEntries = 
@@ -189,67 +194,114 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
       }
     }
 
-    // Nun in der Schleife für jedes Ziel-Datum den nächstgelegenen Eintrag suchen
-    for (final zielDatum in zielDaten) {
-      final closest = _findClosestEntryInList(currentEntries, zielDatum);
+    // 🧊 SOLO: Fixierte Einträge übernehmen, falls sie in currentEntries liegen
+    // 🧊 SOLO: Fixierte Einträge übernehmen, falls sie in currentEntries liegen
+    if (prevResult != null && _fixedIDs.isNotEmpty) {
+      for (final fixedId in _fixedIDs) {
+        final fixedEntry = currentEntries.where((e) => e.id == fixedId).firstOrNull;
+        if (fixedEntry != null) {
+          final reused = prevResult.firstWhere(
+            (p) => p.eintrag.id == fixedId,
+            orElse: () => Vergleichseintrag(
+              eventName: hauptEventName,
+              tag: 0,
+              eintrag: fixedEntry,
+              label: 'Fixiert',
+            ),
+          );
+          debugPrint('[SOLO-FIX] reusing fixed entry id=$fixedId from prevResult (event=$hauptEventName)');
+          result.add(reused);
+        } else {
+          debugPrint('[SOLO-FIX] fixedId=$fixedId not found in currentEntries');
+        }
+      }
+    }
 
-      if (closest == null) continue;
-      
+
+
+    // Nun in der Schleife für jedes Ziel-Datum den nächstgelegenen Eintrag suchen
+    for (int i = 0; i < zielDaten.length; i++) {
+      final zielDatum = zielDaten[i];
+
+       // Prüfen, ob es schon einen fixierten Eintrag für dieses Intervall gibt
+      final hasFixedForInterval = result.any((r) {
+        final d = DateTime.tryParse(r.eintrag.datum);
+        if (d == null) return false;
+        final diffDays = (d.difference(hauptDatum).inDays).abs();
+        final intervalStart = (tageIntervall * i);
+        final intervalEnd = tageIntervall * (i + 1);
+        return _fixedIDs.contains(r.eintrag.id) &&
+              diffDays >= intervalStart &&
+              diffDays < intervalEnd;
+      });
+
+      if (hasFixedForInterval) {
+        debugPrint('[SOLO] skipping interval $i (${tageIntervall * i}-${tageIntervall * (i + 1)} Tage), fixed entry exists');
+        continue;
+      }
+
+      final closest = _findClosestEntryInList(currentEntries, zielDatum);
+      if (closest == null) {
+        debugPrint('[SOLO] i=$i -> closest == null, skip');
+        continue;
+        }
+
       final d = DateTime.tryParse(closest.datum)!;
       final rel = d.difference(hauptDatum).inDays;
-
-      // ID des Kandidaten (kann 0 sein, wenn Placeholder) 
       final candidateId = closest.id;
 
-      // Wenn die ID im Set ist → fixiert. Falls prevResult ein Vergleichseintrag dazu enthält, wiederverwenden.
+      // 🔹 Eindeutiger Eventname für Solo-Vergleiche
+      final soloKey = '${hauptEventName}_solo_$i';
+      
+      debugPrint('[SOLO] i=$i candidateId=$candidateId soloKey=$soloKey rel=$rel');
+
+
+
+      // 🔹 Prüfen, ob fixiert
+      Vergleichseintrag? reused;
       if (candidateId != 0 && _fixedIDs.contains(candidateId)) {
-        // versuche prevResult wiederzuverwenden, falls vorhanden
-        Vergleichseintrag? reused;
+        debugPrint('[SOLO] candidateId=$candidateId is FIXED');
         if (prevResult != null) {
           try {
             reused = prevResult.firstWhere((p) => p.eintrag.id == candidateId);
-          } catch (_) {
+            debugPrint('[SOLO] reused found in prevResult for id=$candidateId (event=${reused.eventName})');
+          } catch (e) {
+            debugPrint('[SOLO] no reused found in prevResult for id=$candidateId -> will recreate but keep fixed in memory');
             reused = null;
           }
-        }
-        if (reused != null) {
-          result.add(reused);
-          continue;
         } else {
-          // Erstelle neuen Vergleichseintrag, markiere fixiert
-          final int relativeTag = rel;
-          final int interval = tageIntervall;
-          final int ideal = ((relativeTag / interval).round()) * interval;
-          final int differenz = relativeTag - ideal;
-          final String diffString = differenz == 0 ? '' : (differenz > 0 ? ' (+$differenz)' : ' ($differenz)');
-
-                result.add(Vergleichseintrag(
-            eventName: hauptEventName,
-            tag: rel,
-            eintrag: closest,
-            label: '$ideal Tage$diffString',
-          ));
-          // markiere in-memory (Checkbox nutzt _fixedIDs)
-          continue;
-        }
+          debugPrint('[SOLO] prevResult is null, cannot reuse for id=$candidateId');
+        } 
+      } else {
+        debugPrint('[SOLO] candidateId=$candidateId is NOT fixed');
       }
 
-      // kein fixierter Eintrag → normal hinzufügen
+      if (reused != null) {
+        // 🧊 Fixierter Eintrag bleibt
+        result.add(reused);
+        continue;
+      }
+
+      // Kein fixierter → neuen Eintrag erzeugen
       final int relativeTag = rel;
       final int interval = tageIntervall;
       final int ideal = ((relativeTag / interval).round()) * interval;
       final int differenz = relativeTag - ideal;
-      final String diffString = differenz == 0 ? '' : (differenz > 0 ? ' (+$differenz)' : ' ($differenz)');
+      final String diffString = differenz == 0
+          ? ''
+          : (differenz > 0 ? ' (+$differenz)' : ' ($differenz)');
+
+      debugPrint('[SOLO] adding new Vergleichseintrag for id=$candidateId with label=$ideal Tage$diffString');
+
 
       result.add(Vergleichseintrag(
-        eventName: hauptEventName,
+        eventName: soloKey,
         tag: rel,
         eintrag: closest,
         label: '$ideal Tage$diffString',
       ));
-       
-      
     }
+
     return result;
   } 
 
@@ -404,6 +456,14 @@ void _onArrowPressed(bool forward, Vergleichseintrag eintrag) async {
         forward ? min(hauptIndex + 1, entries.length - 1) : max(hauptIndex - 1, 0);
     setState(() {
       hauptIndex = newIdx;
+
+      // Debug: show which IDs are fixed and what prevResult contains
+        debugPrint('--- onArrowPressed ---');
+        debugPrint('moving forward=$forward for event=${eintrag.eventName}');
+        debugPrint('fixed IDs before load: ${_fixedIDs.toList()}');
+        debugPrint('prevResult IDs: ${prevResult.map((p) => p.eintrag.id).toList()}');
+
+
       vergleichseintraegeFuture =
           _loadVergleichsdaten(prevResult: prevResult); // 🆕 Übergabe hier
     });
@@ -692,10 +752,13 @@ void _onArrowPressed(bool forward, Vergleichseintrag eintrag) async {
                                 onChanged: (val) {
                                   setState(() {
                                     if (val == true) {
+                                      debugPrint('[FIX] added id=${eintrag.eintrag.id} for event=${eintrag.eventName}');
                                       _fixedIDs.add(eintrag.eintrag.id);
                                     } else {
+                                      debugPrint('[FIX] removed id=${eintrag.eintrag.id} for event=${eintrag.eventName}');
                                       _fixedIDs.remove(eintrag.eintrag.id);
                                     }
+                                    debugPrint('[FIX] current fixed IDs: ${_fixedIDs.toList()}');
                                   });
                                 },
                               ),
