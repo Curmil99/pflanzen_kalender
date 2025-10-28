@@ -93,10 +93,14 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
 
   Future<List<Vergleichseintrag>> _loadVergleichsdaten({
     bool initialLoad = false,
-    int intervall = 365,
+    int? intervall,
     List<Vergleichseintrag>? prevResult, // 🆕
   }) async {
     final result = <Vergleichseintrag>[];
+
+    // benutze entweder das übergebene intervall oder den State-Wert
+    final int usedIntervall = intervall ?? tageIntervall;
+
     
     debugPrint('=== _loadVergleichsdaten START ===');
     debugPrint('eventModus=$eventModus, modus=$modus, hauptEventName=$hauptEventName, hauptIndex=$hauptIndex');
@@ -138,11 +142,17 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
     }
 
     final hauptDatumEntry = currentEntries[hauptIndex];
-    final hauptDatum = DateTime.tryParse(hauptDatumEntry.datum)!;
+
     
 
-    // Berechne relativen Tag
-    final hauptRelativeDays =hauptDatum.difference(hauptDatum).inDays;
+    final hauptDatum = DateTime.tryParse(hauptDatumEntry.datum)!;
+    
+    // Startdatum des Events (erste vorhandene Aufnahme)
+    final hauptStart = _getStartDatumFromList(currentEntries) ?? hauptDatum;
+
+    // Berechne relativen Tag zum Startdatum
+    final hauptRelativeDays =hauptDatum.difference(hauptStart).inDays;
+
 
     final int relativeTag = hauptRelativeDays; // tatsächlicher Offset
     final int interval = tageIntervall;
@@ -169,15 +179,15 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
       currentEntries.sort((a, b) => a.datum.compareTo(b.datum));
 
       final List<DateTime> zielDaten = [];
-      int tageIntervall = intervall;
+      int tageIntervallLocal = usedIntervall;
       const int maxIntervalle = 5;
       final hauptDatum = DateTime.tryParse(hauptDatumEntry.datum)!;
       
     // Wir prüfen Intervalle rückwärts: z.B. 0-365 Tage zurück, 366-730 Tage zurück usw.
     for (int i = 1; i <= maxIntervalle; i++) {
       // Intervall Grenzwerte in Tagen rückwärts
-      final DateTime intervallEnd = hauptDatum.subtract(Duration(days: tageIntervall * (i - 1)));
-      final DateTime intervallStart = hauptDatum.subtract(Duration(days: tageIntervall * i));
+      final DateTime intervallEnd = hauptDatum.subtract(Duration(days: tageIntervallLocal * (i - 1)));
+      final DateTime intervallStart = hauptDatum.subtract(Duration(days: tageIntervallLocal * i));
 
       // Prüfen, ob es Einträge gibt, die im Intervall [intervallStart, intervallEnd] liegen
       final existsInInterval = currentEntries.any((e) {
@@ -228,15 +238,15 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
         final d = DateTime.tryParse(r.eintrag.datum);
         if (d == null) return false;
         final diffDays = (d.difference(hauptDatum).inDays).abs();
-        final intervalStart = (tageIntervall * i);
-        final intervalEnd = tageIntervall * (i + 1);
+        final intervalStart = (tageIntervallLocal * i);
+        final intervalEnd = tageIntervallLocal * (i + 1);
         return _fixedIDs.contains(r.eintrag.id) &&
               diffDays >= intervalStart &&
               diffDays < intervalEnd;
       });
 
       if (hasFixedForInterval) {
-        debugPrint('[SOLO] skipping interval $i (${tageIntervall * i}-${tageIntervall * (i + 1)} Tage), fixed entry exists');
+        debugPrint('[SOLO] skipping interval $i (${tageIntervallLocal * i}-${tageIntervallLocal * (i + 1)} Tage), fixed entry exists');
         continue;
       }
 
@@ -284,7 +294,7 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
 
       // Kein fixierter → neuen Eintrag erzeugen
       final int relativeTag = rel;
-      final int interval = tageIntervall;
+      final int interval = tageIntervallLocal;
       final int ideal = ((relativeTag / interval).round()) * interval;
       final int differenz = relativeTag - ideal;
       final String diffString = differenz == 0
@@ -377,7 +387,7 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
         eventName: result[i].eventName,
         tag: result[i].tag,
         eintrag: result[i].eintrag,
-        label: _berechneLabel(result[i], result, tageIntervall, eventModus),
+        label: _berechneLabel(result[i], result, usedIntervall, eventModus),
       );
     }
 
@@ -707,43 +717,18 @@ void _onArrowPressed(bool forward, Vergleichseintrag eintrag) async {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          
                           eventModus == VergleichsEventModus.solo
-                            ? Builder(
-                              builder: (_) {
-                                final int baseTag = vergleichseintraege.isNotEmpty ? vergleichseintraege[0].tag : 0;
-                                final int relativeTag = eintrag.tag - baseTag;
-
-                                if (relativeTag == 0) {
-                                  return const Text(
-                                    '0 Tage',
-                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                  );
-                                }
-
-                                final int interval = tageIntervall;
-
-                                // Das nächstliegende oder vorherige Vielfache von 365, das kleiner oder gleich relativeTag ist
-                                final int ideal = ( (relativeTag / interval).round() ) * interval;
-
-
-                                final int differenz = relativeTag - ideal;
-
-                                final String diffString = differenz == 0
-                                    ? ''
-                                    : (differenz > 0 ? ' (+$differenz)' : ' ($differenz)');
-
-                                return Text(
-                                  '$ideal Tage$diffString',
+                              ? Text(
+                                  eintrag.eventName == hauptEventName
+                                    ? '0 Tage' // Haupt-Event -> immer 0 Tage
+                                    : (eintrag.label.isNotEmpty ? eintrag.label : ''),
                                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                );
-                              },
-                          )
-                        : Text(
-                            eintrag.eventName,
-                            style: const TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.bold),
-                          ),
+                                )
+                              : Text(
+                                  eintrag.eventName,
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                ),
+                      
                           Row(
                             children: [
                               const Text("Fixieren"),
