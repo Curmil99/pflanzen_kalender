@@ -30,6 +30,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  shared_preferences: ^2.1.0  # Für das Speichern von fixierten Einträgen
   collection: ^1.18.0
   table_calendar: ^3.0.9
   image_picker: ^1.1.2
@@ -39,6 +40,7 @@ dependencies:
   isar: ^3.1.0+1
   isar_flutter_libs: ^3.1.0+1
   path_provider: ^2.1.2   # Für den lokalen Speicherort (Pfad zur App-Dir)
+  wechat_assets_picker: ^9.0.0
   
 
 dev_dependencies:

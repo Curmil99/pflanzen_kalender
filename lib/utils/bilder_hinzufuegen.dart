@@ -6,6 +6,7 @@ import '../repositories/day_repo.dart';
 import 'package:exif/exif.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/services.dart';
+import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 
 Future<bool> ensureStoragePermission(BuildContext context) async {
   if (await Permission.photos.isGranted || await Permission.storage.isGranted) {
@@ -33,27 +34,19 @@ Future<DateTime?> getExifDate(File file) async {
   return null;
 }
 
-class NativeDateHelper {
-  static const _channel = MethodChannel('app.channel.images');
+DateTime? parseWhatsAppDateFromPath(String fileName) {
+  final regex = RegExp(r'^(IMG|VID)-(\d{4})(\d{2})(\d{2})-WA\d+');
+  final match = regex.firstMatch(fileName);
 
-  static Future<DateTime?> getImageTakenDate(String path) async {
-    try {
-      final result = await _channel.invokeMethod('getImageDate', {'path': path});
-      final int timestamp = result['timestamp'];
-      return DateTime.fromMillisecondsSinceEpoch(timestamp);
-    } catch (_) {
-      return null;
-    }
-  }
+  if (match == null) return null;
 
-  static Future<String?> findOriginalPath(String cachePath) async {
-    try {
-      final result = await _channel.invokeMethod('findOriginalPath', {'path': cachePath});
-      return result;
-    } catch (_) {
-      return null;
-    }
-  }
+  final year = int.tryParse(match.group(2)!);
+  final month = int.tryParse(match.group(3)!);
+  final day = int.tryParse(match.group(4)!);
+
+  if (year == null || month == null || day == null) return null;
+
+  return DateTime(year, month, day);
 }
 
 class BilderHelper {
@@ -64,32 +57,41 @@ class BilderHelper {
   }) async {
     if (!await ensureStoragePermission(context)) return;
 
-    final List<XFile>? images = await ImagePicker().pickMultiImage();
-    if (images == null || images.isEmpty) return;
+    final List<AssetEntity>? assets = await AssetPicker.pickAssets(
+      context,
+      pickerConfig: const AssetPickerConfig(
+        maxAssets: 10,
+        requestType: RequestType.image,
+      ),
+    );
+    if (assets == null || assets.isEmpty) return;
 
     final repo = DayRepo();
 
     // Bilder nach Datum gruppieren (falls mehrere Tage vorkommen)
     final Map<String, List<String>> dateToPaths = {};
 
-    for (var image in images) {
-      final file = File(image.path);
-      File targetFile = file;
+    for (var asset in assets) {
+      final file = await asset.file;
+      if (file == null) continue;
 
-      // Originalpfad prüfen
-      final originalPath = await NativeDateHelper.findOriginalPath(file.path);
-      if (originalPath != null) targetFile = File(originalPath);
+      final title = asset.title ?? '';
+      debugPrint('Asset title: $title');
+      debugPrint('Asset path: ${file.path}');
 
-      // Datum bestimmen: EXIF → Native → Fallback
-      DateTime? takenDate = await getExifDate(targetFile);
-      takenDate ??= await NativeDateHelper.getImageTakenDate(targetFile.path);
-      takenDate ??= await targetFile.lastModified();
+      // Datum bestimmen: EXIF → WhatsApp-Dateiname → Fallback
+      DateTime? takenDate = await getExifDate(file);
+      debugPrint('EXIF date: $takenDate');
+      takenDate ??= parseWhatsAppDateFromPath(title);
+      debugPrint('WhatsApp date from title: $takenDate');
+      takenDate ??= await file.lastModified();
+      debugPrint('Fallback lastModified: $takenDate');
 
       final dateKey =
           '${takenDate.year}-${takenDate.month.toString().padLeft(2, '0')}-${takenDate.day.toString().padLeft(2, '0')}';
 
       dateToPaths.putIfAbsent(dateKey, () => []);
-      dateToPaths[dateKey]!.add(targetFile.path);
+      dateToPaths[dateKey]!.add(file.path);
     }
 
     // Jetzt pro Datum den passenden Entry updaten
@@ -117,7 +119,7 @@ class BilderHelper {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${images.length} Bilder hinzugefügt.')),
+      SnackBar(content: Text('${assets.length} Bilder hinzugefügt.')),
     );
   }
 }

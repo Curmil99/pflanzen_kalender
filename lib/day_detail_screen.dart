@@ -203,6 +203,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
                 onPressed: () async {
                   final date = widget.selectedDate;
 
+                  // 🔧 Nur Einträge des aktuell angezeigten Events laden (egal ob Haupt oder Neben)
                   final entries = await DayRepo()
                       .watchEntries(widget.kategorie, widget.eventName)
                       .first;
@@ -217,20 +218,21 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
 
                   if (startDatum.isEmpty) return;
 
-                  final relativerTag =
-                      date.difference(startDatum.first).inDays;
+                  final relativerTag = date.difference(startDatum.first).inDays;
 
+                  // 🔧 Jetzt das angezeigte Event (nicht das globale HauptEvent) als HauptEvent setzen
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => VergleichsAnsicht(
-                        aktuellesEventName: widget.eventName,
+                        aktuellesEventName: widget.eventName, // ← wichtig
                         kategorie: widget.kategorie,
                         aktuellerTag: relativerTag,
                       ),
                     ),
                   );
-                },
+                }
+
               ),
             ],
           ),

@@ -6,6 +6,9 @@ import '../models/day_entry.dart';
 import 'package:intl/intl.dart';
 
 
+// Dieser Screen ist die Kalenderansicht
+
+
 enum CalendarViewMode {
   nurAktuellesEvent,
   vorjahreImMonat,
@@ -72,7 +75,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
 
 
-  Future<DateTime?> getLastEventDate(String kategorie, String eventName) async {
+  Future<DateTime?> getFirstLastEventDate(String kategorie, String eventName, bool isFirst) async {
     final entries = await DayRepo().watchEntries(kategorie, eventName).first;
     if (entries.isEmpty) return null;
 
@@ -84,7 +87,14 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     if (allDates.isEmpty) return null;
 
     allDates.sort();
-    return allDates.last;
+
+    debugPrint('All dates for $kategorie/$eventName: ${allDates.map((d) => d.toIso8601String()).toList()}');
+    debugPrint('isFirst: $isFirst, returning: ${isFirst ? allDates.first : allDates.last}');
+
+    if (isFirst) 
+      return allDates.first;
+    else
+      return allDates.last;
   }
 
 
@@ -450,20 +460,43 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           },
         ),
 
-        floatingActionButton: FloatingActionButton(
-          child: Icon(Icons.history),
-          onPressed: () async {
-            final lastDate = await getLastEventDate(widget.kategorie, widget.eventName);
-            if (lastDate != null) {
-              setState(() {
-                _focusedDay = lastDate;
-              });
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text("Keine Einträge vorhanden")),
-              );
-            }
-          },
+        floatingActionButton: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            FloatingActionButton(
+              heroTag: 'firstEvent',
+              child: Icon(Icons.first_page),
+              onPressed: () async {
+                final firstDate = await getFirstLastEventDate(widget.kategorie, widget.eventName, true);
+                if (firstDate != null) {
+                  setState(() {
+                    _focusedDay = firstDate;
+                  });
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Keine Einträge vorhanden")),
+                  );
+                }
+              },
+            ),
+            SizedBox(width: 16),
+            FloatingActionButton(
+              heroTag: 'lastEvent',
+              child: Icon(Icons.last_page),
+              onPressed: () async {
+                final lastDate = await getFirstLastEventDate(widget.kategorie, widget.eventName, false);
+                if (lastDate != null) {
+                  setState(() {
+                    _focusedDay = lastDate;
+                  });
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Keine Einträge vorhanden")),
+                  );
+                }
+              },
+            ),
+          ],
         ),
 
 
