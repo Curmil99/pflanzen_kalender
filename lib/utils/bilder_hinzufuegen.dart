@@ -1,11 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import '../models/day_entry.dart';
 import '../repositories/day_repo.dart';
 import 'package:exif/exif.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:flutter/services.dart';
 import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 
 Future<bool> ensureStoragePermission(BuildContext context) async {

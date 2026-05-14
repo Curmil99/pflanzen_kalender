@@ -39,10 +39,13 @@ class _EventListeScreenState extends State<EventListeScreen> {
     EventSortiermodus.laufzeit: false, // Dauer macht meist Sinn absteigend
   };
 
+  late List<String> _events;
 
-
-  List<String> get _events =>
-      _eventStore.putIfAbsent(widget.kategorie, () => []);
+  @override
+  void initState() {
+    super.initState();
+    _events = DayRepo().getEvents(widget.kategorie);
+  }
 
   Future<List<String>> _getSortedEvents() async {
     var events = List<String>.from(_events);
@@ -83,16 +86,6 @@ class _EventListeScreenState extends State<EventListeScreen> {
     return events;
   }
 
-  
-  // Map speichert für jede Kategorie ihre eigene Event‑Liste.
-  // => In einer echten App wäre das eine DB‑Abfrage; für jetzt Memory‑Storage.
-  static final Map<String, List<String>> _eventStore = {
-    'Pflanzen': ['2023', '2024', '2025'],
-    'Kinder': ['2021', '2022'],
-    'Sonstiges': ['Test'],
-  };
-
-
   /* ---------- Event hinzufügen ---------- */
   void _showEventHinzufuegenDialog() {
     final controller = TextEditingController(); // zum Eingeben des Event‑Namens
@@ -115,7 +108,8 @@ class _EventListeScreenState extends State<EventListeScreen> {
             onPressed: () {
               final name = controller.text.trim(); // Leerzeichen weg
               if (name.isNotEmpty && !_events.contains(name)) {
-                setState(() => _events.add(name)); // Event hinzufügen
+                DayRepo().addEvent(widget.kategorie, name);
+                setState(() => _events = DayRepo().getEvents(widget.kategorie)); // Event hinzufügen
                 Navigator.pop(context);
               }
             },
@@ -172,7 +166,7 @@ class _EventListeScreenState extends State<EventListeScreen> {
                       }
 
                       // 2. Auch lokal aus der Liste entfernen, damit UI aktualisiert wird
-                      setState(() => _events.removeWhere(auswahl.contains));
+                      setState(() => _events = DayRepo().getEvents(widget.kategorie));
 
                       Navigator.pop(context);
                     },
@@ -184,19 +178,6 @@ class _EventListeScreenState extends State<EventListeScreen> {
       ),
     );
   }
-
-  Future<List<Map<String, dynamic>>> _getSortedEventsWithSpans() async {
-    final events = await _getSortedEvents(); // sortiert nach gewähltem Modus
-    final List<Map<String, dynamic>> result = [];
-
-    for (var ev in events) {
-      final span = await _spanInTagen(ev);
-      result.add({'name': ev, 'span': span});
-    }
-
-    return result;
-  }
-
 
   /// Liefert die Zahl der Tage zwischen dem ersten und letzten Eintrag
   /// (inklusive beider Tage). Gibt 0 zurück, wenn gar kein Eintrag existiert.
@@ -216,7 +197,19 @@ class _EventListeScreenState extends State<EventListeScreen> {
     // Differenz inkl. beider Tage → +1
     return last.difference(first).inDays + 1;
   }
-  
+
+  Future<List<Map<String, dynamic>>> _getSortedEventsWithSpans() async {
+    final events = await _getSortedEvents(); // sortiert nach gewähltem Modus
+    final List<Map<String, dynamic>> result = [];
+
+    for (var ev in events) {
+      final span = await _spanInTagen(ev);
+      result.add({'name': ev, 'span': span});
+    }
+
+    return result;
+  }
+
 
   /* ---------- Popup‑Menü (Plus‑Button) ---------- */
   void _showMenu() async {
@@ -244,7 +237,6 @@ class _EventListeScreenState extends State<EventListeScreen> {
             ? '${_markierteEvents.length} ausgewählt'
             : '${widget.kategorie} Events'),
         actions: [
-          if (_auswahlmodusE)
             IconButton(
               icon: const Icon(Icons.delete),
               onPressed: _markierteEvents.isEmpty
@@ -256,11 +248,11 @@ class _EventListeScreenState extends State<EventListeScreen> {
                       }
 
                       // 2. Auch lokal aus der Liste entfernen, damit UI aktualisiert wird
-                      setState(() => _events.removeWhere(_markierteEvents.contains));
-
-                      // 3. Auswahlmodus zurücksetzen
-                      _markierteEvents.clear();
-                      _auswahlmodusE = false;
+                      setState(() {
+                        _events = DayRepo().getEvents(widget.kategorie);
+                        _markierteEvents.clear();
+                        _auswahlmodusE = false;
+                      });
                     },
             ),
           PopupMenuButton<EventSortiermodus>(

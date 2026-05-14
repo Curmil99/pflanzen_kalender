@@ -1,6 +1,8 @@
 import 'package:isar/isar.dart';
 import '../models/day_entry.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 class DayRepo {
   static final DayRepo _instance = DayRepo._internal();
@@ -8,6 +10,8 @@ class DayRepo {
   DayRepo._internal();
 
   late final Isar _isar;
+  late final SharedPreferences _prefs;
+  Map<String, List<String>> _eventStore = {};
 
   /// Muss vor Nutzung einmal aufgerufen werden
   Future<void> init() async {
@@ -16,6 +20,31 @@ class DayRepo {
       [DayEntrySchema],
       directory: dir.path,
     );
+    _prefs = await SharedPreferences.getInstance();
+    _eventStore = _loadEvents();
+  }
+
+  Map<String, List<String>> _loadEvents() {
+    final json = _prefs.getString('events') ?? '{"Pflanzen":["2023","2024","2025"],"Kinder":["2021","2022"],"Sonstiges":["Test"]}';
+    final map = jsonDecode(json) as Map<String, dynamic>;
+    return map.map((k, v) => MapEntry(k, List<String>.from(v)));
+  }
+
+  Future<void> _saveEvents() async {
+    final json = jsonEncode(_eventStore);
+    await _prefs.setString('events', json);
+  }
+
+  List<String> getEvents(String kategorie) => _eventStore[kategorie] ?? [];
+
+  Future<void> addEvent(String kategorie, String event) async {
+    _eventStore.putIfAbsent(kategorie, () => []).add(event);
+    await _saveEvents();
+  }
+
+  Future<void> removeEvent(String kategorie, String event) async {
+    _eventStore[kategorie]?.remove(event);
+    await _saveEvents();
   }
 
   // ---------- CRUD ----------
@@ -108,11 +137,8 @@ class DayRepo {
   final Map<String, Map<String, DayEntry>> allEntries = {};
 
   Future<void> deleteEvent(String kategorie, String eventName) async {
-    // Aus Cache löschen
-    final katMap = allEntries[kategorie];
-    if (katMap != null) {
-      katMap.remove(eventName);
-    }
+    // Events aus Speicher entfernen
+    await removeEvent(kategorie, eventName);
 
     // Aus Datenbank löschen
     await _isar.writeTxn(() async {
@@ -125,8 +151,6 @@ class DayRepo {
   }
 
   Future<void> deleteKategorie(String kategorie) async {
-    allEntries.remove(kategorie); // Cache leeren
-
     await _isar.writeTxn(() async {
       await _isar.dayEntrys
           .filter()
