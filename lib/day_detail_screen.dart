@@ -305,12 +305,13 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
             child: const Icon(Icons.add_photo_alternate),
           ),
 
-          bottomNavigationBar: Padding(
-            padding: const EdgeInsets.all(8),
-            child: ElevatedButton(
-              onPressed: () async {
-                final hasNote = _noteCtrl.text.trim().isNotEmpty;
-                final hasImages = _bilder.isNotEmpty;
+          bottomNavigationBar: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: ElevatedButton(
+                onPressed: () async {
+                  final hasNote = _noteCtrl.text.trim().isNotEmpty;
+                  final hasImages = _bilder.isNotEmpty;
                 final hasContent = hasNote || hasImages;
 
                 // Hole bestehenden Eintrag (falls vorhanden)
@@ -340,6 +341,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
               },
               child: const Text('Alles speichern'),
             ),
+          ),
           ),
         );
       },

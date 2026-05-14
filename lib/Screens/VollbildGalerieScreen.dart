@@ -39,7 +39,8 @@ class _VollbildGalerieScreenState extends State<VollbildGalerieScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: PageView.builder(
+      body: SafeArea(
+        child: PageView.builder(
         controller: _controller,
         itemCount: widget.bilder.length,
         onPageChanged: (index) => setState(() => _aktuellerIndex = index),
@@ -79,6 +80,7 @@ class _VollbildGalerieScreenState extends State<VollbildGalerieScreen> {
             ],
           );
         },
+        ),
       ),
     );
   }

@@ -166,8 +166,9 @@ class _KategorieListeScreenState extends State<KategorieListeScreen> {
             ),
         ],
       ),
-      body: ListView.builder(
-        itemCount: kategorien.length,
+      body: SafeArea(
+        child: ListView.builder(
+          itemCount: kategorien.length,
         itemBuilder: (context, index) {
           final kategorie = kategorien[index];
 
@@ -217,6 +218,7 @@ class _KategorieListeScreenState extends State<KategorieListeScreen> {
             },
           );
         },
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showMenu,

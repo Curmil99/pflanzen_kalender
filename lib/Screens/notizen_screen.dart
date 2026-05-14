@@ -109,8 +109,9 @@ class _NotizenScreenState extends State<NotizenScreen> {
             ),
           ],
         ),
-        body: _alleEintraege.isEmpty
-            ? const Center(
+        body: SafeArea(
+          child: _alleEintraege.isEmpty
+              ? const Center(
                 child: Text('Keine Einträge vorhanden',
                     style: TextStyle(color: Colors.grey)),
               )
@@ -164,6 +165,7 @@ class _NotizenScreenState extends State<NotizenScreen> {
                   );
                 },
               ),
+        ),
       ),
     );
   }

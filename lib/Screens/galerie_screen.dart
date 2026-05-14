@@ -233,8 +233,9 @@ class _GalerieScreenState extends State<GalerieScreen> {
               ),
           ],
         ),
-        body: hatBilder
-            ? GridView.builder(
+        body: SafeArea(
+          child: hatBilder
+              ? GridView.builder(
                 padding: const EdgeInsets.all(8),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
@@ -277,6 +278,7 @@ class _GalerieScreenState extends State<GalerieScreen> {
                 child: Text('Keine Bilder vorhanden',
                     style: TextStyle(color: Colors.grey)),
               ),
+        ),
         floatingActionButton: _auswahlmodus
             ? FloatingActionButton.extended(
                 onPressed: _loescheMarkierteBilder,
