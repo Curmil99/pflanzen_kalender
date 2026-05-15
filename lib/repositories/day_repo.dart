@@ -12,6 +12,8 @@ class DayRepo {
   late final Isar _isar;
   late final SharedPreferences _prefs;
   Map<String, List<String>> _eventStore = {};
+  List<String> _kategorien = [];
+  static const String _kategorieKey = 'kategorien';
 
   /// Muss vor Nutzung einmal aufgerufen werden
   Future<void> init() async {
@@ -22,6 +24,7 @@ class DayRepo {
     );
     _prefs = await SharedPreferences.getInstance();
     _eventStore = _loadEvents();
+    _kategorien = _loadKategorien();
   }
 
   Map<String, List<String>> _loadEvents() {
@@ -40,6 +43,27 @@ class DayRepo {
   Future<void> addEvent(String kategorie, String event) async {
     _eventStore.putIfAbsent(kategorie, () => []).add(event);
     await _saveEvents();
+  }
+
+  List<String> _loadKategorien() {
+    final list = _prefs.getStringList(_kategorieKey);
+    if (list == null || list.isEmpty) {
+      return ['Pflanzen', 'Kinder', 'Sonstiges'];
+    }
+    return List<String>.from(list);
+  }
+
+  Future<void> _saveKategorien() async {
+    await _prefs.setStringList(_kategorieKey, _kategorien);
+  }
+
+  List<String> getKategorien() => List.unmodifiable(_kategorien);
+
+  Future<bool> addKategorie(String kategorie) async {
+    if (_kategorien.contains(kategorie)) return false;
+    _kategorien.add(kategorie);
+    await _saveKategorien();
+    return true;
   }
 
   Future<void> removeEvent(String kategorie, String event) async {
@@ -151,6 +175,9 @@ class DayRepo {
   }
 
   Future<void> deleteKategorie(String kategorie) async {
+    _kategorien.remove(kategorie);
+    await _saveKategorien();
+
     await _isar.writeTxn(() async {
       await _isar.dayEntrys
           .filter()

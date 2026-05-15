@@ -9,10 +9,16 @@ class KategorieListeScreen extends StatefulWidget {
 }
 
 class _KategorieListeScreenState extends State<KategorieListeScreen> {
-  List<String> kategorien = ['Pflanzen', 'Kinder', 'Sonstiges']; // Liste mit Kategorien, änderbar
+  List<String> kategorien = [];
 
   bool _auswahlmodusK = false;   // ob wir gerade mehrere Kategorien zum Löschen markieren
   Set<String> _markierteKategorien = {};
+
+  @override
+  void initState() {
+    super.initState();
+    kategorien = List<String>.from(DayRepo().getKategorien());
+  }
 
   void _showKategorieHinzufuegenDialog() {    // Funktion zum Hinzufügen einer neuen Kategorie
     final TextEditingController controller = TextEditingController(); // Controller fürs Texteingabefeld
@@ -33,13 +39,16 @@ class _KategorieListeScreenState extends State<KategorieListeScreen> {
               child: Text('Abbrechen'),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 String neuerName = controller.text.trim(); // Text aus Textfeld holen, Leerzeichen weg
-                if (neuerName.isNotEmpty && !kategorien.contains(neuerName)) { // Prüfen ob Name nicht leer und nicht schon in der Liste
-                  setState(() {
-                    kategorien.add(neuerName); // Neue Kategorie zur Liste hinzufügen
-                  });
-                  Navigator.pop(context); // Dialog schließen
+                if (neuerName.isNotEmpty) {
+                  final added = await DayRepo().addKategorie(neuerName);
+                  if (added) {
+                    setState(() {
+                      kategorien.add(neuerName); // Neue Kategorie zur Liste hinzufügen
+                    });
+                    Navigator.pop(context); // Dialog schließen
+                  }
                 }
                 // Hier könnte man noch Fehlerbehandlung einbauen (z.B. Warnung bei leerem Namen)
               },

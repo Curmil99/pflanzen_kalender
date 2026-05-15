@@ -178,142 +178,154 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
       // Nur Einträge dieses Events (aus anderen Jahren)
       currentEntries.sort((a, b) => a.datum.compareTo(b.datum));
 
-      final List<DateTime> zielDaten = [];
+      final List<MapEntry<int, DateTime>> zielIntervalle = [];
       int tageIntervallLocal = usedIntervall;
       const int maxIntervalle = 5;
       final hauptDatum = DateTime.tryParse(hauptDatumEntry.datum)!;
-      
-    // Wir prüfen Intervalle rückwärts: z.B. 0-365 Tage zurück, 366-730 Tage zurück usw.
-    for (int i = 1; i <= maxIntervalle; i++) {
-      // Intervall Grenzwerte in Tagen rückwärts
-      final DateTime intervallEnd = hauptDatum.subtract(Duration(days: tageIntervallLocal * (i - 1)));
-      final DateTime intervallStart = hauptDatum.subtract(Duration(days: tageIntervallLocal * i));
 
-      // Prüfen, ob es Einträge gibt, die im Intervall [intervallStart, intervallEnd] liegen
-      final existsInInterval = currentEntries.any((e) {
-        final d = DateTime.tryParse(e.datum);
-        if (d == null) return false;
-        // Datum d liegt im Intervall
-        return !d.isBefore(intervallStart) && !d.isAfter(intervallEnd);
-      });
+      // Wir prüfen Intervalle rückwärts: z.B. 0-365 Tage zurück, 366-730 Tage zurück usw.
+      for (int intervalIndex = 1; intervalIndex <= maxIntervalle; intervalIndex++) {
+        // Intervall Grenzwerte in Tagen rückwärts
+        final DateTime intervallEnd = hauptDatum.subtract(Duration(days: tageIntervallLocal * (intervalIndex - 1)));
+        final DateTime intervallStart = hauptDatum.subtract(Duration(days: tageIntervallLocal * intervalIndex));
 
-      if (existsInInterval) {
-        // Ziel-Datum für Suche merken: bspw. Beginn Intervall (= hauptDatum minus days)
-        // Alternativ könnte auch intervallEnd genommen werden, je nachdem, was sinnvoller ist
-        zielDaten.add(intervallStart);
-      }
-    }
+        // Prüfen, ob es Einträge gibt, die im Intervall [intervallStart, intervallEnd] liegen
+        final existsInInterval = currentEntries.any((e) {
+          final d = DateTime.tryParse(e.datum);
+          if (d == null) return false;
+          return !d.isBefore(intervallStart) && !d.isAfter(intervallEnd);
+        });
 
-    // 🧊 SOLO: Fixierte Einträge übernehmen, falls sie in currentEntries liegen
-    // 🧊 SOLO: Fixierte Einträge übernehmen, falls sie in currentEntries liegen
-    if (prevResult != null && _fixedIDs.isNotEmpty) {
-      for (final fixedId in _fixedIDs) {
-        final fixedEntry = currentEntries.where((e) => e.id == fixedId).firstOrNull;
-        if (fixedEntry != null) {
-          final reused = prevResult.firstWhere(
-            (p) => p.eintrag.id == fixedId,
-            orElse: () => Vergleichseintrag(
-              eventName: hauptEventName,
-              tag: 0,
-              eintrag: fixedEntry,
-              label: 'Fixiert',
-            ),
-          );
-          debugPrint('[SOLO-FIX] reusing fixed entry id=$fixedId from prevResult (event=$hauptEventName)');
-          result.add(reused);
-        } else {
-          debugPrint('[SOLO-FIX] fixedId=$fixedId not found in currentEntries');
+        if (existsInInterval) {
+          // Ziel-Datum für Suche merken: bspw. Beginn Intervall (= hauptDatum minus days)
+          // Alternativ könnte auch intervallEnd genommen werden, je nachdem, was sinnvoller ist
+          zielIntervalle.add(MapEntry(intervalIndex, intervallStart));
         }
       }
-    }
 
+      final selectedEntryIds = <int>{hauptDatumEntry.id};
 
+      // 🧊 SOLO: Fixierte Einträge übernehmen, falls sie in currentEntries liegen
+      if (_fixedIDs.isNotEmpty) {
+        for (final fixedId in _fixedIDs) {
+          if (selectedEntryIds.contains(fixedId)) continue;
 
-    // Nun in der Schleife für jedes Ziel-Datum den nächstgelegenen Eintrag suchen
-    for (int i = 0; i < zielDaten.length; i++) {
-      final zielDatum = zielDaten[i];
+          final fixedEntry = currentEntries.where((e) => e.id == fixedId).firstOrNull;
+          if (fixedEntry != null) {
+            final reused = prevResult?.firstWhere(
+                  (p) => p.eintrag.id == fixedId,
+                  orElse: () => Vergleichseintrag(
+                    eventName: hauptEventName,
+                    tag: 0,
+                    eintrag: fixedEntry,
+                    label: 'Fixiert',
+                  ),
+                ) ??
+                Vergleichseintrag(
+                  eventName: hauptEventName,
+                  tag: 0,
+                  eintrag: fixedEntry,
+                  label: 'Fixiert',
+                );
+            debugPrint('[SOLO-FIX] reusing fixed entry id=$fixedId from prevResult (event=$hauptEventName)');
+            result.add(reused);
+            selectedEntryIds.add(fixedId);
+          } else {
+            debugPrint('[SOLO-FIX] fixedId=$fixedId not found in currentEntries');
+          }
+        }
+      }
 
-       // Prüfen, ob es schon einen fixierten Eintrag für dieses Intervall gibt
-      final hasFixedForInterval = result.any((r) {
-        final d = DateTime.tryParse(r.eintrag.datum);
-        if (d == null) return false;
-        final diffDays = (d.difference(hauptDatum).inDays).abs();
-        final intervalStart = (tageIntervallLocal * i);
-        final intervalEnd = tageIntervallLocal * (i + 1);
-        return _fixedIDs.contains(r.eintrag.id) &&
+      // Nun in der Schleife für jedes Ziel-Datum den nächstgelegenen Eintrag suchen
+      for (final soloInterval in zielIntervalle) {
+        final intervalIndex = soloInterval.key;
+        final zielDatum = soloInterval.value;
+
+        // Prüfen, ob es schon einen fixierten Eintrag für dieses Intervall gibt
+        final hasFixedForInterval = result.any((r) {
+          final d = DateTime.tryParse(r.eintrag.datum);
+          if (d == null) return false;
+          final diffDays = (d.difference(hauptDatum).inDays).abs();
+          final intervalStart = tageIntervallLocal * (intervalIndex - 1);
+          final intervalEnd = tageIntervallLocal * intervalIndex;
+          return _fixedIDs.contains(r.eintrag.id) &&
               diffDays >= intervalStart &&
               diffDays < intervalEnd;
-      });
+        });
 
-      if (hasFixedForInterval) {
-        debugPrint('[SOLO] skipping interval $i (${tageIntervallLocal * i}-${tageIntervallLocal * (i + 1)} Tage), fixed entry exists');
-        continue;
-      }
-
-      final closest = _findClosestEntryInList(currentEntries, zielDatum);
-      if (closest == null) {
-        debugPrint('[SOLO] i=$i -> closest == null, skip');
-        continue;
+        if (hasFixedForInterval) {
+          debugPrint('[SOLO] skipping interval $intervalIndex (${tageIntervallLocal * (intervalIndex - 1)}-${tageIntervallLocal * intervalIndex} Tage), fixed entry exists');
+          continue;
         }
 
-      final d = DateTime.tryParse(closest.datum)!;
-      final rel = d.difference(hauptDatum).inDays;
-      final candidateId = closest.id;
+        final closest = _findClosestEntryInList(currentEntries, zielDatum, excludeIds: selectedEntryIds);
+        if (closest == null) {
+          debugPrint('[SOLO] intervalIndex=$intervalIndex -> closest == null, skip');
+          continue;
+        }
 
-      // 🔹 Eindeutiger Eventname für Solo-Vergleiche
-      final soloKey = '${hauptEventName}_solo_$i';
-      
-      debugPrint('[SOLO] i=$i candidateId=$candidateId soloKey=$soloKey rel=$rel');
+        final d = DateTime.tryParse(closest.datum)!;
+        final rel = d.difference(hauptDatum).inDays;
+        final candidateId = closest.id;
 
+        if (selectedEntryIds.contains(candidateId)) {
+          debugPrint('[SOLO] intervalIndex=$intervalIndex candidateId=$candidateId already selected, skip');
+          continue;
+        }
 
+        // 🔹 Eindeutiger Eventname für Solo-Vergleiche
+        final soloKey = '${hauptEventName}_solo_$intervalIndex';
 
-      // 🔹 Prüfen, ob fixiert
-      Vergleichseintrag? reused;
-      if (candidateId != 0 && _fixedIDs.contains(candidateId)) {
-        debugPrint('[SOLO] candidateId=$candidateId is FIXED');
-        if (prevResult != null) {
-          try {
-            reused = prevResult.firstWhere((p) => p.eintrag.id == candidateId);
-            debugPrint('[SOLO] reused found in prevResult for id=$candidateId (event=${reused.eventName})');
-          } catch (e) {
-            debugPrint('[SOLO] no reused found in prevResult for id=$candidateId -> will recreate but keep fixed in memory');
-            reused = null;
+        debugPrint('[SOLO] intervalIndex=$intervalIndex candidateId=$candidateId soloKey=$soloKey rel=$rel');
+
+        // 🔹 Prüfen, ob fixiert
+        Vergleichseintrag? reused;
+        if (candidateId != 0 && _fixedIDs.contains(candidateId)) {
+          debugPrint('[SOLO] candidateId=$candidateId is FIXED');
+          if (prevResult != null) {
+            try {
+              reused = prevResult.firstWhere((p) => p.eintrag.id == candidateId);
+              debugPrint('[SOLO] reused found in prevResult for id=$candidateId (event=${reused.eventName})');
+            } catch (e) {
+              debugPrint('[SOLO] no reused found in prevResult for id=$candidateId -> will recreate but keep fixed in memory');
+              reused = null;
+            }
+          } else {
+            debugPrint('[SOLO] prevResult is null, cannot reuse for id=$candidateId');
           }
         } else {
-          debugPrint('[SOLO] prevResult is null, cannot reuse for id=$candidateId');
-        } 
-      } else {
-        debugPrint('[SOLO] candidateId=$candidateId is NOT fixed');
+          debugPrint('[SOLO] candidateId=$candidateId is NOT fixed');
+        }
+
+        if (reused != null) {
+          // 🧊 Fixierter Eintrag bleibt
+          result.add(reused);
+          selectedEntryIds.add(candidateId);
+          continue;
+        }
+
+        // Kein fixierter → neuen Eintrag erzeugen
+        final int relativeTag = rel;
+        final int intervalLength = tageIntervallLocal;
+        final int ideal = ((relativeTag / intervalLength).round()) * intervalLength;
+        final int differenz = relativeTag - ideal;
+        final String diffString = differenz == 0
+            ? ''
+            : (differenz > 0 ? ' (+$differenz)' : ' ($differenz)');
+
+        debugPrint('[SOLO] adding new Vergleichseintrag for id=$candidateId with label=$ideal Tage$diffString');
+
+        result.add(Vergleichseintrag(
+          eventName: soloKey,
+          tag: rel,
+          eintrag: closest,
+          label: '$ideal Tage$diffString',
+        ));
+        selectedEntryIds.add(candidateId);
       }
 
-      if (reused != null) {
-        // 🧊 Fixierter Eintrag bleibt
-        result.add(reused);
-        continue;
-      }
-
-      // Kein fixierter → neuen Eintrag erzeugen
-      final int relativeTag = rel;
-      final int interval = tageIntervallLocal;
-      final int ideal = ((relativeTag / interval).round()) * interval;
-      final int differenz = relativeTag - ideal;
-      final String diffString = differenz == 0
-          ? ''
-          : (differenz > 0 ? ' (+$differenz)' : ' ($differenz)');
-
-      debugPrint('[SOLO] adding new Vergleichseintrag for id=$candidateId with label=$ideal Tage$diffString');
-
-
-      result.add(Vergleichseintrag(
-        eventName: soloKey,
-        tag: rel,
-        eintrag: closest,
-        label: '$ideal Tage$diffString',
-      ));
+      return result;
     }
-
-    return result;
-  } 
 
 
 
@@ -415,13 +427,14 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
   }
 
 
-  DayEntry? _findClosestEntryInList(List<DayEntry> entries, DateTime target) {
+  DayEntry? _findClosestEntryInList(List<DayEntry> entries, DateTime target, {Set<int>? excludeIds}) {
     DayEntry? closest;
     int minDiff = 1 << 30;
     for (var e in entries) {
+      if (excludeIds?.contains(e.id) == true) continue;
       final d = DateTime.tryParse(e.datum);
       if (d == null) continue;
-      
+
       final diff = (d.difference(target).inDays).abs();
       if (diff < minDiff) {
         minDiff = diff;
