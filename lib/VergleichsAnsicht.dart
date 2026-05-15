@@ -465,6 +465,35 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
   // 🔹 Teil 3: Anpassung _onArrowPressed()
 // Übergibt die aktuelle Liste an _loadVergleichsdaten(prevResult: ...)
 void _onArrowPressed(bool forward, Vergleichseintrag eintrag) async {
+  // Prüfe, ob es ein künstliches Solo-Event ist (enthält "_solo_")
+  if (eintrag.eventName.contains('_solo_')) {
+    // Im Solo-Modus: nur den hauptIndex zum aktuellen Eintrag-Datum setzen
+    final entries =
+        await DayRepo().watchEntries(widget.kategorie, hauptEventName).first;
+    if (entries.isEmpty) return;
+
+    entries.sort((a, b) => a.datum.compareTo(b.datum));
+
+    // Finde den Index des aktuellen Eintrags im Hauptevent
+    int newIdx = 0;
+    final entryDate = DateTime.tryParse(eintrag.eintrag.datum);
+    if (entryDate != null) {
+      newIdx = entries.indexWhere(
+          (e) => _isSameDay(DateTime.tryParse(e.datum)!, entryDate));
+      if (newIdx == -1) newIdx = 0;
+    }
+
+    final prevResult = await vergleichseintraegeFuture;
+
+    setState(() {
+      hauptIndex = newIdx;
+      debugPrint('[SOLO-ARROW] jumped to index=$newIdx for date=${eintrag.eintrag.datum} in event=$hauptEventName');
+      vergleichseintraegeFuture = _loadVergleichsdaten(prevResult: prevResult);
+    });
+    return;
+  }
+
+  // Im Group-Modus: normales Verhalten (zu anderem Event wechseln)
   final entries =
       await DayRepo().watchEntries(widget.kategorie, eintrag.eventName).first;
   if (entries.isEmpty) return;
@@ -479,16 +508,10 @@ void _onArrowPressed(bool forward, Vergleichseintrag eintrag) async {
         forward ? min(hauptIndex + 1, entries.length - 1) : max(hauptIndex - 1, 0);
     setState(() {
       hauptIndex = newIdx;
-
-      // Debug: show which IDs are fixed and what prevResult contains
-        debugPrint('--- onArrowPressed ---');
-        debugPrint('moving forward=$forward for event=${eintrag.eventName}');
-        debugPrint('fixed IDs before load: ${_fixedIDs.toList()}');
-        debugPrint('prevResult IDs: ${prevResult.map((p) => p.eintrag.id).toList()}');
-
-
+      debugPrint('--- onArrowPressed ---');
+      debugPrint('moving forward=$forward for event=${eintrag.eventName}');
       vergleichseintraegeFuture =
-          _loadVergleichsdaten(prevResult: prevResult); // 🆕 Übergabe hier
+          _loadVergleichsdaten(prevResult: prevResult);
     });
   } else {
     int idx = 0;
@@ -502,7 +525,7 @@ void _onArrowPressed(bool forward, Vergleichseintrag eintrag) async {
       hauptEventName = eintrag.eventName;
       hauptIndex = idx;
       vergleichseintraegeFuture =
-          _loadVergleichsdaten(prevResult: prevResult); // 🆕 Übergabe hier
+          _loadVergleichsdaten(prevResult: prevResult);
     });
   }
 }
