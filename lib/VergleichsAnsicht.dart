@@ -154,23 +154,13 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
     final hauptRelativeDays =hauptDatum.difference(hauptStart).inDays;
 
 
-    final int relativeTag = hauptRelativeDays; // tatsächlicher Offset
-    final int interval = tageIntervall;
-    final int ideal = ((relativeTag / interval).round()) * interval;
-    final int differenz = relativeTag - ideal;
-    final String diffString = differenz == 0
-        ? ''
-        : (differenz > 0 ? ' (+$differenz)' : ' ($differenz)');
-    
     result.add(Vergleichseintrag(
       eventName: hauptEventName,
-      tag: hauptRelativeDays,
+      tag: eventModus == VergleichsEventModus.solo ? 0 : hauptRelativeDays,
       eintrag: hauptDatumEntry,
-      label: widget.label.isNotEmpty
-      ? widget.label
-      : (eventModus == VergleichsEventModus.solo
-          ? '$ideal Tage$diffString'
-          : hauptEventName),
+      label: eventModus == VergleichsEventModus.solo
+          ? '0 Tage'
+          : (widget.label.isNotEmpty ? widget.label : hauptEventName),
     ));
 
     // 🔸 NEU: Ab hier prüfen, ob Solo-Modus aktiv ist
@@ -323,7 +313,14 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
         ));
         selectedEntryIds.add(candidateId);
       }
-
+      for (var i = 0; i < result.length; i++) {
+        result[i] = Vergleichseintrag(
+          eventName: result[i].eventName,
+          tag: result[i].tag,
+          eintrag: result[i].eintrag,
+          label: _berechneLabel(result[i], result, usedIntervall, eventModus),
+        );
+      }
       return result;
     }
 
@@ -413,14 +410,7 @@ class _VergleichsAnsichtState extends State<VergleichsAnsicht> {
           orElse: () => alle[0],
         );
         final int relativeTag = eintrag.tag - hauptEintrag.tag;
-        if (relativeTag == 0) return '0 Tage';
-        final int interval = tageIntervall;
-        final int ideal = ((relativeTag / interval).round()) * interval;
-        final int differenz = relativeTag - ideal;
-        final String diffString = differenz == 0
-            ? ''
-            : (differenz > 0 ? ' (+$differenz)' : ' ($differenz)');
-      return '$ideal Tage$diffString';
+        return '$relativeTag Tage';
     } else {
       return eintrag.eventName;
     }
@@ -755,16 +745,15 @@ void _onArrowPressed(bool forward, Vergleichseintrag eintrag) async {
                         children: [
                           eventModus == VergleichsEventModus.solo
                               ? Text(
-                                  eintrag.eventName == hauptEventName
-                                    ? '0 Tage' // Haupt-Event -> immer 0 Tage
-                                    : (eintrag.label.isNotEmpty ? eintrag.label : ''),
+                                  eintrag.label.isNotEmpty
+                                    ? eintrag.label
+                                    : '0 Tage',
                                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                                 )
                               : Text(
                                   eintrag.eventName,
                                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                                 ),
-                      
                           Row(
                             children: [
                               const Text("Fixieren"),
@@ -785,12 +774,10 @@ void _onArrowPressed(bool forward, Vergleichseintrag eintrag) async {
                               ),
                             ],
                           ),
-                                             
-                        Text('Tag ${eintrag.tag + 1}'),
+                          if (eventModus != VergleichsEventModus.solo)
+                            Text('Tag ${eintrag.tag + 1}'),
                         ],
                       ),
-
-
 
                       const SizedBox(height: 4),
                       // Titel + Pfeile
