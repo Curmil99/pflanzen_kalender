@@ -49,8 +49,9 @@ class _DirektVergleichAnsichtState extends State<DirektVergleichAnsicht> {
     
     return Scaffold(
       appBar: AppBar(title: Text('Direkter Vergleich')),
-      body: Column(
-        children: [
+      body: SafeArea(
+        child: Column(
+          children: [
           // Oberes Bild + Dropdown
           Expanded(
             child: Column(
@@ -247,6 +248,7 @@ class _DirektVergleichAnsichtState extends State<DirektVergleichAnsicht> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

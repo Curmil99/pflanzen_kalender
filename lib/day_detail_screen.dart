@@ -140,7 +140,44 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     });
   }
 
+  void _showImageViewer(BuildContext context, List<String> imagePaths, int initialIndex) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) {
+        PageController controller = PageController(initialPage: initialIndex);
 
+        return Dialog(
+          insetPadding: EdgeInsets.zero,
+          backgroundColor: Colors.black,
+          child: Stack(
+            children: [
+              PageView.builder(
+                controller: controller,
+                itemCount: imagePaths.length,
+                itemBuilder: (_, index) {
+                  return InteractiveViewer(
+                    child: Image.file(
+                      File(imagePaths[index]),
+                      fit: BoxFit.contain,
+                    ),
+                  );
+                },
+              ),
+              Positioned(
+                top: 30,
+                right: 20,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   void dispose() {
@@ -254,7 +291,14 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
                         itemCount: _bilder.length,
                         itemBuilder: (context, i) => Stack(
                           children: [
-                            Image.file(_bilder[i], fit: BoxFit.cover),
+                            GestureDetector(
+                              onTap: () => _showImageViewer(
+                                context,
+                                _bilder.map((f) => f.path).toList(),
+                                i,
+                              ),
+                              child: Image.file(_bilder[i], fit: BoxFit.cover),
+                            ),
                             Positioned(
                               top: 4,
                               right: 4,

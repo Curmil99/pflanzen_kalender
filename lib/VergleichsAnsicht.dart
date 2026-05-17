@@ -648,7 +648,9 @@ void _onArrowPressed(bool forward, Vergleichseintrag eintrag) async {
                           icon: const Icon(Icons.arrow_left, color: Colors.white),
                           onPressed: () {
                             setState(() {
-                              modus = VergleichsModus.relativ;
+                              modus = modus == VergleichsModus.relativ
+                                  ? VergleichsModus.datum
+                                  : VergleichsModus.relativ;
                               vergleichseintraegeFuture = _loadVergleichsdaten();
                             });
                           },
@@ -657,7 +659,9 @@ void _onArrowPressed(bool forward, Vergleichseintrag eintrag) async {
                           icon: const Icon(Icons.arrow_right, color: Colors.white),
                           onPressed: () {
                             setState(() {
-                              modus = VergleichsModus.datum;
+                              modus = modus == VergleichsModus.relativ
+                                  ? VergleichsModus.datum
+                                  : VergleichsModus.relativ;
                               vergleichseintraegeFuture = _loadVergleichsdaten();
                             });
                           },
