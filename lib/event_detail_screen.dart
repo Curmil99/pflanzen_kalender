@@ -399,13 +399,14 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           ],
         ),
 
-        body: TableCalendar(
-          firstDay: DateTime.utc(2000, 1, 1),
-          lastDay: DateTime.utc(2100, 12, 31),
-          focusedDay: _focusedDay,
-          calendarFormat: CalendarFormat.month,
-          rowHeight: 80,
-          headerVisible: true,
+        body: SingleChildScrollView(
+          child: TableCalendar(
+            firstDay: DateTime.utc(2000, 1, 1),
+            lastDay: DateTime.utc(2100, 12, 31),
+            focusedDay: _focusedDay,
+            calendarFormat: CalendarFormat.month,
+            rowHeight: MediaQuery.of(context).orientation == Orientation.portrait ? 80 : 35,
+            headerVisible: true,
           headerStyle: HeaderStyle(
             formatButtonVisible: false,
             titleCentered: true,
@@ -457,7 +458,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               _modified = true;     // Merken, dass etwas passiert ist
               setState(() {});      // Kalender sofort refreshen
             }
-          },
+            },
+          ),
         ),
 
         floatingActionButton: Row(
@@ -498,8 +500,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ),
           ],
         ),
-
-
       ),
     );
   }
