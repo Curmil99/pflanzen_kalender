@@ -198,6 +198,30 @@ class _EventListeScreenState extends State<EventListeScreen> {
     return last.difference(first).inDays + 1;
   }
 
+  final Map<String, Future<Map<String, int>>> _eventStatsCache = {};
+
+  Future<Map<String, int>> _getEventStats(String event) {
+    return _eventStatsCache.putIfAbsent(event, () async {
+      final repo = DayRepo();
+      final entries = await repo.watchEntries(widget.kategorie, event).first;
+      final dates = entries
+          .map((e) => DateTime.parse(e.datum))
+          .toList()
+        ..sort();
+
+      final span = dates.isEmpty ? 0 : dates.last.difference(dates.first).inDays + 1;
+      final images = entries.fold<int>(0, (sum, entry) => sum + entry.imagePaths.length);
+      final notes = entries.where((entry) => entry.note.trim().isNotEmpty).length;
+
+      return {
+        'entries': entries.length,
+        'images': images,
+        'notes': notes,
+        'span': span,
+      };
+    });
+  }
+
   Future<List<Map<String, dynamic>>> _getSortedEventsWithSpans() async {
     final events = await _getSortedEvents(); // sortiert nach gewähltem Modus
     final List<Map<String, dynamic>> result = [];
@@ -210,6 +234,54 @@ class _EventListeScreenState extends State<EventListeScreen> {
     return result;
   }
 
+  void _showEventInfo(String eventName) async {
+    final stats = await _getEventStats(eventName);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Event-Info: $eventName'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.timeline, color: Colors.green),
+                title: Text('${stats['span']} Tage'),
+                subtitle: const Text('Dauer des Events'),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.event_note, color: Colors.green),
+                title: Text('${stats['entries']} Einträge'),
+                subtitle: const Text('Anzahl der Tageinträge'),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.photo_library, color: Colors.green),
+                title: Text('${stats['images']} Bilder'),
+                subtitle: const Text('Fotos, die zu diesem Event hinzugefügt wurden'),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.note_alt, color: Colors.green),
+                title: Text('${stats['notes']} Notizen'),
+                subtitle: const Text('Textinhalte in den Einträgen'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Schließen'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   /* ---------- Popup‑Menü (Plus‑Button) ---------- */
   void _showMenu() async {
@@ -295,124 +367,141 @@ class _EventListeScreenState extends State<EventListeScreen> {
             itemBuilder: (context, index) {
               final eventData = eventsWithSpans[index];
               final eventName = eventData['name'] as String;
-              final span = eventData['span'] as int;
 
-              return ListTile(
-                title: Text(eventName),
-                trailing: _auswahlmodusE
-                    ? Checkbox(
-                        value: _markierteEvents.contains(eventName),
-                        onChanged: (val) {
-                          setState(() {
-                            if (val == true) {
-                              _markierteEvents.add(eventName);
-                            } else {
-                              _markierteEvents.remove(eventName);
-                              if (_markierteEvents.isEmpty) _auswahlmodusE = false;
-                            }
-                          });
-                        },
-                      )
-                    : Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: Text('$span', style: TextStyle(color: Colors.grey[700])),
-                    ),
-                    IconButton(  // Button zum Bilder hinzufügen
-                      onPressed: () async {
-                        await BilderHelper.addBilderZuEvent(
-                          context: context,
-                          kategorie: widget.kategorie,
-                          eventName: eventName,
-                        );
-                        setState(() {});
-                      },
-                      icon: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Icon(Icons.photo, size: 28),
-                          Positioned(
-                            right: 0,
-                            bottom: 0,
-                            child: Icon(Icons.add_circle, size: 14, color: Colors.greenAccent),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton( // Button für Galerieansicht
-                      icon: Icon(Icons.photo_library),
-                      tooltip: 'Gallerie aller Bilder',
-                      onPressed: () async {
-                        final updated = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => GalerieScreen(
-                              kategorie: widget.kategorie,
-                              eventName: eventName,
-                            ),
-                          ),
-                        );
-
-                        if (updated == true) {
-                          setState(() {}); // Ansicht neu laden
-                        }
-                      },
-                    ),
-                    // 📝 Button für Notizenansicht
-                    IconButton(
-                      icon: const Icon(Icons.note_alt_outlined), // modernes Notiz-Icon
-                      tooltip: 'Alle Notizen anzeigen',
-                      onPressed: () async {
-                        final updated = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => NotizenScreen(
-                              kategorie: widget.kategorie,
-                              eventName: eventName,
-                            ),
-                          ),
-                        );
-
-                        if (updated == true) {
-                          setState(() {}); // Ansicht aktualisieren, falls nötig
-                        }
-                      },
-                    ),
-                  ],
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
                 ),
-                onTap: () { // Zum Event-Detail-Screen navigieren
-                  if (_auswahlmodusE) {
-                    setState(() {
-                      if (_markierteEvents.contains(eventName)) {
-                        _markierteEvents.remove(eventName);
-                        if (_markierteEvents.isEmpty) _auswahlmodusE = false;
-                      } else {
-                        _markierteEvents.add(eventName);
-                      }
-                    });
-                  } else {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => EventDetailScreen(
-                        kategorie: widget.kategorie,
-                        eventName: eventName,
-                      ),
+                elevation: 3,
+                child: ListTile(
+                  contentPadding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+                  title: Text(
+                    eventName,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
                     ),
-                  ).then((modified) {
-                    if (modified == true) setState(() {});
-                  });
-                }
-              },
-              onLongPress: () {
-                setState(() {
-                  _auswahlmodusE = true;
-                  _markierteEvents.add(eventName);
-                });
-              },
-            );
+                  ),
+                  trailing: _auswahlmodusE
+                      ? Checkbox(
+                          value: _markierteEvents.contains(eventName),
+                          onChanged: (val) {
+                            setState(() {
+                              if (val == true) {
+                                _markierteEvents.add(eventName);
+                              } else {
+                                _markierteEvents.remove(eventName);
+                                if (_markierteEvents.isEmpty) _auswahlmodusE = false;
+                              }
+                            });
+                          },
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.info_outline),
+                              tooltip: 'Event-Info',
+                              onPressed: () => _showEventInfo(eventName),
+                            ),
+                            IconButton(
+                              onPressed: () async {
+                                await BilderHelper.addBilderZuEvent(
+                                  context: context,
+                                  kategorie: widget.kategorie,
+                                  eventName: eventName,
+                                );
+                                setState(() {});
+                              },
+                              icon: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  const Icon(Icons.photo, size: 28),
+                                  Positioned(
+                                    right: 0,
+                                    bottom: 0,
+                                    child: Icon(
+                                      Icons.add_circle,
+                                      size: 14,
+                                      color: Colors.green.shade400,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.photo_library),
+                              tooltip: 'Galerie öffnen',
+                              onPressed: () async {
+                                final updated = await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => GalerieScreen(
+                                      kategorie: widget.kategorie,
+                                      eventName: eventName,
+                                    ),
+                                  ),
+                                );
+
+                                if (updated == true) {
+                                  setState(() {});
+                                }
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.note_alt_outlined),
+                              tooltip: 'Notizen öffnen',
+                              onPressed: () async {
+                                final updated = await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => NotizenScreen(
+                                      kategorie: widget.kategorie,
+                                      eventName: eventName,
+                                    ),
+                                  ),
+                                );
+
+                                if (updated == true) {
+                                  setState(() {});
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                  onTap: () {
+                    if (_auswahlmodusE) {
+                      setState(() {
+                        if (_markierteEvents.contains(eventName)) {
+                          _markierteEvents.remove(eventName);
+                          if (_markierteEvents.isEmpty) _auswahlmodusE = false;
+                        } else {
+                          _markierteEvents.add(eventName);
+                        }
+                      });
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => EventDetailScreen(
+                            kategorie: widget.kategorie,
+                            eventName: eventName,
+                          ),
+                        ),
+                      ).then((modified) {
+                        if (modified == true) setState(() {});
+                      });
+                    }
+                  },
+                  onLongPress: () {
+                    setState(() {
+                      _auswahlmodusE = true;
+                      _markierteEvents.add(eventName);
+                    });
+                  },
+                ),
+              );
             },
           );
         },

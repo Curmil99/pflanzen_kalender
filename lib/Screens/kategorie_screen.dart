@@ -189,7 +189,7 @@ class _KategorieListeScreenState extends State<KategorieListeScreen> {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                'Organisiere deine Kategorien bequem und finde schneller die passenden Pflanzenpflege-Einträge.',
+                'Lege hier unterschiedliche Kategorien an, um Bilder von diesen zu vergleichen.',
                 style: theme.textTheme.bodyLarge,
               ),
             ),
