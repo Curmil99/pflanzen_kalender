@@ -146,6 +146,8 @@ class _KategorieListeScreenState extends State<KategorieListeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -176,57 +178,95 @@ class _KategorieListeScreenState extends State<KategorieListeScreen> {
         ],
       ),
       body: SafeArea(
-        child: ListView.builder(
-          itemCount: kategorien.length,
-        itemBuilder: (context, index) {
-          final kategorie = kategorien[index];
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.secondary.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                'Organisiere deine Kategorien bequem und finde schneller die passenden Pflanzenpflege-Einträge.',
+                style: theme.textTheme.bodyLarge,
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                itemCount: kategorien.length,
+                itemBuilder: (context, index) {
+                  final kategorie = kategorien[index];
 
-          return ListTile(
-            title: Text(kategorie),
-            trailing: _auswahlmodusK
-                ? Checkbox(
-                    value: _markierteKategorien.contains(kategorie),
-                    onChanged: (val) {
-                      setState(() {
-                        if (val == true) {
-                          _markierteKategorien.add(kategorie);
+                  return Card(
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        vertical: 14,
+                        horizontal: 16,
+                      ),
+                      leading: CircleAvatar(
+                        backgroundColor:
+                            theme.colorScheme.secondary.withOpacity(0.22),
+                        foregroundColor: theme.colorScheme.primary,
+                        child: const Icon(Icons.local_florist),
+                      ),
+                      title: Text(
+                        kategorie,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      trailing: _auswahlmodusK
+                          ? Checkbox(
+                              value: _markierteKategorien.contains(kategorie),
+                              onChanged: (val) {
+                                setState(() {
+                                  if (val == true) {
+                                    _markierteKategorien.add(kategorie);
+                                  } else {
+                                    _markierteKategorien.remove(kategorie);
+                                    if (_markierteKategorien.isEmpty) {
+                                      _auswahlmodusK = false;
+                                    }
+                                  }
+                                });
+                              },
+                            )
+                          : const Icon(Icons.chevron_right),
+                      onTap: () {
+                        if (_auswahlmodusK) {
+                          setState(() {
+                            if (_markierteKategorien.contains(kategorie)) {
+                              _markierteKategorien.remove(kategorie);
+                              if (_markierteKategorien.isEmpty) _auswahlmodusK = false;
+                            } else {
+                              _markierteKategorien.add(kategorie);
+                            }
+                          });
                         } else {
-                          _markierteKategorien.remove(kategorie);
-                          if (_markierteKategorien.isEmpty) {
-                            _auswahlmodusK = false;
-                          }
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => EventListeScreen(kategorie: kategorie),
+                            ),
+                          );
                         }
-                      });
-                    },
-                  )
-                : const Icon(Icons.folder),
-            onTap: () {
-              if (_auswahlmodusK) {
-                setState(() {
-                  if (_markierteKategorien.contains(kategorie)) {
-                    _markierteKategorien.remove(kategorie);
-                    if (_markierteKategorien.isEmpty) _auswahlmodusK = false;
-                  } else {
-                    _markierteKategorien.add(kategorie);
-                  }
-                });
-              } else {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => EventListeScreen(kategorie: kategorie),
-                  ),
-                );
-              }
-            },
-            onLongPress: () {
-              setState(() {
-                _auswahlmodusK = true;
-                _markierteKategorien.add(kategorie);
-              });
-            },
-          );
-        },
+                      },
+                      onLongPress: () {
+                        setState(() {
+                          _auswahlmodusK = true;
+                          _markierteKategorien.add(kategorie);
+                        });
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
