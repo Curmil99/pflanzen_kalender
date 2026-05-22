@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'day_detail_screen.dart';  // <– ganz oben ergänzen
@@ -274,62 +276,146 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             }
             final finalAndere = uniqueAndere.values.toList();
 
-            return Container(
-              width: double.infinity,
-              margin: EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade400, width: 0.6),
-                borderRadius: BorderRadius.circular(6),
-                color: isToday ? Colors.green.shade100 : null,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(4.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('${date.day}',
-                        style:
-                            TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    if (current != null &&
-                        (current.title.isNotEmpty ||
-                            current.note.isNotEmpty ||
-                            current.imagePaths.isNotEmpty))
-                      _badge(
-                          _currentViewMode == CalendarViewMode.nurAktuellesEvent
-                            ? DateTime.parse(current.datum).year.toString() // nur Jahr
-                            : current.event,
-                          Colors.green.shade400,
-                          Colors.white),
-                    for (final e in finalAndere)
-                      if (e.title.isNotEmpty || e.note.isNotEmpty || e.imagePaths.isNotEmpty)
-                        GestureDetector(
-                          onTap: () async {
-                            final changed = await Navigator.push<bool>(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => DayDetailScreen(
-                                  kategorie: e.kategorie,
-                                  eventName: e.event,
-                                  selectedDate: DateTime.parse(e.datum), // dein dateKey ist String
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final isLandscape =
+                  MediaQuery.of(context).orientation == Orientation.landscape;
+                final cellPadding =
+                    MediaQuery.of(context).orientation == Orientation.landscape ? 2.0 : 4.0;
+                final badgeAreaHeight = max(0.0, constraints.maxHeight - 22.0);
+
+                return Container(
+                  width: double.infinity,
+                  margin: EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade400, width: 0.6),
+                    borderRadius: BorderRadius.circular(6),
+                    color: isToday ? Colors.green.shade100 : null,
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.all(cellPadding),
+                    child: isLandscape
+                        ? Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${date.day}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
                                 ),
                               ),
-                            );
-                            if (changed == true) {
-                              _modified = true;
-                              setState(() {});
-                            }
-                          },
-                          child: _badge(
-                            _currentViewMode == CalendarViewMode.nurAktuellesEvent  //Bei nur aktuelles Event wird das Jahr und nicht der Eventname angezeigt
-                              ? DateTime.parse(e.datum).year.toString()
-                              : e.event,
-                            Colors.green.shade200,
-                            Colors.black87,
+                              SizedBox(width: 4),
+
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    children: [
+                                      if (current != null &&
+                                          (current.title.isNotEmpty ||
+                                              current.note.isNotEmpty ||
+                                              current.imagePaths.isNotEmpty))
+                                        _badge(
+                                          _currentViewMode == CalendarViewMode.nurAktuellesEvent
+                                              ? DateTime.parse(current.datum).year.toString()
+                                              : current.event,
+                                          Colors.green.shade400,
+                                          Colors.white,
+                                        ),
+
+                                      for (final e in finalAndere)
+                                        if (e.title.isNotEmpty ||
+                                            e.note.isNotEmpty ||
+                                            e.imagePaths.isNotEmpty)
+                                          GestureDetector(
+                                            onTap: () async {
+                                              final changed = await Navigator.push<bool>(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (_) => DayDetailScreen(
+                                                    kategorie: e.kategorie,
+                                                    eventName: e.event,
+                                                    selectedDate: DateTime.parse(e.datum),
+                                                  ),
+                                                ),
+                                              );
+                                              if (changed == true) {
+                                                _modified = true;
+                                                setState(() {});
+                                              }
+                                            },
+                                            child: _badge(
+                                              _currentViewMode == CalendarViewMode.nurAktuellesEvent
+                                                  ? DateTime.parse(e.datum).year.toString()
+                                                  : e.event,
+                                              Colors.green.shade200,
+                                              Colors.black87,
+                                            ),
+                                          ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${date.day}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+
+                              if (current != null &&
+                                  (current.title.isNotEmpty ||
+                                      current.note.isNotEmpty ||
+                                      current.imagePaths.isNotEmpty))
+                                _badge(
+                                  _currentViewMode == CalendarViewMode.nurAktuellesEvent
+                                      ? DateTime.parse(current.datum).year.toString()
+                                      : current.event,
+                                  Colors.green.shade400,
+                                  Colors.white,
+                                ),
+
+                              for (final e in finalAndere)
+                                if (e.title.isNotEmpty ||
+                                    e.note.isNotEmpty ||
+                                    e.imagePaths.isNotEmpty)
+                                  GestureDetector(
+                                    onTap: () async {
+                                      final changed = await Navigator.push<bool>(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => DayDetailScreen(
+                                            kategorie: e.kategorie,
+                                            eventName: e.event,
+                                            selectedDate: DateTime.parse(e.datum),
+                                          ),
+                                        ),
+                                      );
+                                      if (changed == true) {
+                                        _modified = true;
+                                        setState(() {});
+                                      }
+                                    },
+                                    child: _badge(
+                                      _currentViewMode == CalendarViewMode.nurAktuellesEvent
+                                          ? DateTime.parse(e.datum).year.toString()
+                                          : e.event,
+                                      Colors.green.shade200,
+                                      Colors.black87,
+                                    ),
+                                  ),
+                            ],
                           ),
-                        ),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             );
           },
         );
@@ -339,19 +425,39 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
 
   // kleines Hilfs‑Widget für Badges
-  Widget _badge(String text, Color bg, Color fg) => Container(
-        margin: EdgeInsets.only(top: 2),
-        padding: EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-        decoration:
-            BoxDecoration(color: bg, borderRadius: BorderRadius.circular(3)),
-        child: Text(text,
-            style: TextStyle(fontSize: 10, color: fg),
-            overflow: TextOverflow.ellipsis),
-      );
+  Widget _badge(String text, Color bg, Color fg) {
+
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+
+    return Container(
+      margin: EdgeInsets.only(top: isLandscape ? 1 : 2),
+      padding: EdgeInsets.symmetric(
+        horizontal: isLandscape ? 2 : 3,
+        vertical: isLandscape ? 0 : 1,
+      ),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: isLandscape ? 8 : 10,
+          color: fg,
+        ),
+      ),
+    );
+  }
 
 
   @override
   Widget build(BuildContext context) {
+    final isLandscape =
+      MediaQuery.of(context).orientation == Orientation.landscape;
+
     return WillPopScope(
       onWillPop: () async {
         Navigator.pop(context, _modified);   // Ändert Rückgabe‑Wert
@@ -399,67 +505,79 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           ],
         ),
 
-        body: SingleChildScrollView(
-          child: TableCalendar(
-            firstDay: DateTime.utc(2000, 1, 1),
-            lastDay: DateTime.utc(2100, 12, 31),
-            focusedDay: _focusedDay,
-            calendarFormat: CalendarFormat.month,
-            rowHeight: MediaQuery.of(context).orientation == Orientation.portrait ? 80 : 35,
-            headerVisible: true,
-          headerStyle: HeaderStyle(
-            formatButtonVisible: false,
-            titleCentered: true,
-            titleTextFormatter: (date, locale) =>
-                '${DateFormat.MMMM(locale).format(date)} ${date.year}',
-          ),
-          calendarBuilders: CalendarBuilders(
-            defaultBuilder: (c, d, _) => _buildDayCell(d, false),
-            todayBuilder: (c, d, _) => _buildDayCell(d, true),
-            headerTitleBuilder: (context, date) {
-              return GestureDetector(
-                onTap: () async {
-                  final pickedDate = await showDatePicker(
-                    context: context,
-                    initialDate: _focusedDay,
-                    firstDate: DateTime(2000),
-                    lastDate: DateTime(2100),
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final headerApprox = 90.0;
+            final rows = 6;
+            final available = max(0.0, constraints.maxHeight - headerApprox);
+
+            final rowHeight = isLandscape
+                ? max(36.0, (available / rows) - 2)
+                : 80.0;
+
+            return SizedBox(
+              height: constraints.maxHeight,
+              child: TableCalendar(
+                firstDay: DateTime.utc(2000, 1, 1),
+                lastDay: DateTime.utc(2100, 12, 31),
+                focusedDay: _focusedDay,
+                calendarFormat: CalendarFormat.month,
+                rowHeight: rowHeight,
+                headerVisible: true,
+                headerStyle: HeaderStyle(
+                  formatButtonVisible: false,
+                  titleCentered: true,
+                  titleTextFormatter: (date, locale) =>
+                      '${DateFormat.MMMM(locale).format(date)} ${date.year}',
+                ),
+                calendarBuilders: CalendarBuilders(
+                  defaultBuilder: (c, d, _) => _buildDayCell(d, false),
+                  todayBuilder: (c, d, _) => _buildDayCell(d, true),
+                  headerTitleBuilder: (context, date) {
+                    return GestureDetector(
+                      onTap: () async {
+                        final pickedDate = await showDatePicker(
+                          context: context,
+                          initialDate: _focusedDay,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                        );
+                        if (pickedDate != null) {
+                          setState(() {
+                            _focusedDay = pickedDate;
+                          });
+                        }
+                      },
+                      child: Center(
+                        child: Text(
+                          '${DateFormat.MMMM().format(date)} ${date.year}',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                onPageChanged: (day) => setState(() => _focusedDay = day),
+                onDaySelected: (selectedDay, _) async {
+                  final changed = await Navigator.push<bool>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => DayDetailScreen(
+                        kategorie: widget.kategorie,
+                        eventName: widget.eventName,
+                        selectedDate: selectedDay,
+                      ),
+                    ),
                   );
-                  if (pickedDate != null) {
-                    setState(() {
-                      _focusedDay = pickedDate;
-                    });
+
+                  if (changed == true) {
+                    _modified = true; // Merken, dass etwas passiert ist
+                    setState(() {}); // Kalender sofort refreshen
                   }
                 },
-                child: Center(
-                  child: Text(
-                    '${DateFormat.MMMM().format(date)} ${date.year}',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              );
-            },
-          ),
-          onPageChanged: (day) => setState(() => _focusedDay = day),
-          onDaySelected: (selectedDay, _) async {
-            // ⇣⇣ DayDetailScreen aufrufen und Rückgabe abfangen
-            final changed = await Navigator.push<bool>(
-              context,
-              MaterialPageRoute(
-                builder: (_) => DayDetailScreen(
-                  kategorie: widget.kategorie,
-                  eventName: widget.eventName,
-                  selectedDate: selectedDay,
-                ),
               ),
             );
-
-            if (changed == true) {
-              _modified = true;     // Merken, dass etwas passiert ist
-              setState(() {});      // Kalender sofort refreshen
-            }
-            },
-          ),
+          },
         ),
 
         floatingActionButton: Row(
