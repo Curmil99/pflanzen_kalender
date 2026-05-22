@@ -13,7 +13,9 @@ class DayRepo {
   late final SharedPreferences _prefs;
   Map<String, List<String>> _eventStore = {};
   List<String> _kategorien = [];
+  Map<String, int> _kategorieIcons = {};
   static const String _kategorieKey = 'kategorien';
+  static const String _kategorieIconsKey = 'kategorie_icons';
 
   /// Muss vor Nutzung einmal aufgerufen werden
   Future<void> init() async {
@@ -25,6 +27,19 @@ class DayRepo {
     _prefs = await SharedPreferences.getInstance();
     _eventStore = _loadEvents();
     _kategorien = _loadKategorien();
+    _kategorieIcons = _loadKategorienIcons();
+  }
+
+  Map<String, int> _loadKategorienIcons() {
+    final jsonStr = _prefs.getString(_kategorieIconsKey);
+    if (jsonStr == null || jsonStr.isEmpty) return {};
+    final Map<String, dynamic> map = jsonDecode(jsonStr);
+    return map.map((k, v) => MapEntry(k, v as int));
+  }
+
+  Future<void> _saveKategorienIcons() async {
+    final jsonStr = jsonEncode(_kategorieIcons);
+    await _prefs.setString(_kategorieIconsKey, jsonStr);
   }
 
   Map<String, List<String>> _loadEvents() {
@@ -63,6 +78,54 @@ class DayRepo {
     if (_kategorien.contains(kategorie)) return false;
     _kategorien.add(kategorie);
     await _saveKategorien();
+    return true;
+  }
+
+  int? getKategorieIcon(String kategorie) => _kategorieIcons[kategorie];
+
+  Future<void> setKategorieIcon(String kategorie, int codePoint) async {
+    _kategorieIcons[kategorie] = codePoint;
+    await _saveKategorienIcons();
+  }
+
+  /// Versucht, eine Kategorie umzubenennen. Liefert false, wenn der neue Name
+  /// bereits existiert oder leer ist.
+  Future<bool> renameKategorie(String oldName, String newName) async {
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty) return false;
+    if (oldName == trimmed) return true; // nichts zu tun
+    if (_kategorien.contains(trimmed)) return false; // Konflikt
+
+    // 1) Liste aktualisieren
+    final index = _kategorien.indexOf(oldName);
+    if (index != -1) {
+      _kategorien[index] = trimmed;
+      await _saveKategorien();
+    }
+
+    // 2) Events-Mapping migrieren
+    if (_eventStore.containsKey(oldName)) {
+      final events = _eventStore.remove(oldName)!;
+      _eventStore[trimmed] = events;
+      await _saveEvents();
+    }
+
+    // 3) Icon mapping migrieren
+    if (_kategorieIcons.containsKey(oldName)) {
+      final icon = _kategorieIcons.remove(oldName)!;
+      _kategorieIcons[trimmed] = icon;
+      await _saveKategorienIcons();
+    }
+
+    // 4) Datenbank-Einträge anpassen
+    await _isar.writeTxn(() async {
+      final entries = await _isar.dayEntrys.filter().kategorieEqualTo(oldName).findAll();
+      for (final e in entries) {
+        e.kategorie = trimmed;
+      }
+      if (entries.isNotEmpty) await _isar.dayEntrys.putAll(entries);
+    });
+
     return true;
   }
 
@@ -172,6 +235,36 @@ class DayRepo {
           .eventEqualTo(eventName)
           .deleteAll();
     });
+  }
+
+  /// Versucht, ein Event innerhalb einer Kategorie umzubenennen.
+  /// Liefert false, wenn der neue Name leer ist oder bereits existiert.
+  Future<bool> renameEvent(String kategorie, String oldName, String newName) async {
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty) return false;
+    if (oldName == trimmed) return true;
+
+    final events = _eventStore[kategorie] ?? [];
+    if (events.contains(trimmed)) return false; // Konflikt
+
+    // 1) Event-Liste aktualisieren
+    final idx = events.indexOf(oldName);
+    if (idx != -1) {
+      events[idx] = trimmed;
+      _eventStore[kategorie] = events;
+      await _saveEvents();
+    }
+
+    // 2) Datenbank-Einträge anpassen
+    await _isar.writeTxn(() async {
+      final entries = await _isar.dayEntrys.filter().kategorieEqualTo(kategorie).eventEqualTo(oldName).findAll();
+      for (final e in entries) {
+        e.event = trimmed;
+      }
+      if (entries.isNotEmpty) await _isar.dayEntrys.putAll(entries);
+    });
+
+    return true;
   }
 
   Future<void> deleteKategorie(String kategorie) async {

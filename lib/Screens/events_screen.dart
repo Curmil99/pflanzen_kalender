@@ -283,6 +283,46 @@ class _EventListeScreenState extends State<EventListeScreen> {
     );
   }
 
+  void _showEventBearbeitenDialog(String oldName) {
+    final controller = TextEditingController(text: oldName);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Event umbenennen'),
+          content: TextField(
+            controller: controller,
+            decoration: InputDecoration(hintText: 'Neuer Name des Events'),
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: Text('Abbrechen')),
+            ElevatedButton(
+              onPressed: () async {
+                final newName = controller.text.trim();
+                if (newName.isEmpty) return;
+
+                final ok = await DayRepo().renameEvent(widget.kategorie, oldName, newName);
+                if (!ok) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Name ungültig oder bereits vorhanden')));
+                  return;
+                }
+
+                setState(() {
+                  _events = DayRepo().getEvents(widget.kategorie);
+                });
+
+                Navigator.pop(context);
+              },
+              child: Text('Speichern'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   /* ---------- Popup‑Menü (Plus‑Button) ---------- */
   void _showMenu() async {
     final result = await showMenu<String>(
@@ -466,6 +506,13 @@ class _EventListeScreenState extends State<EventListeScreen> {
                                 if (updated == true) {
                                   setState(() {});
                                 }
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.edit),
+                              tooltip: 'Event umbenennen',
+                              onPressed: () {
+                                _showEventBearbeitenDialog(eventName);
                               },
                             ),
                           ],

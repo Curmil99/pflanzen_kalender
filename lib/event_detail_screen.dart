@@ -282,7 +282,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   MediaQuery.of(context).orientation == Orientation.landscape;
                 final cellPadding =
                     MediaQuery.of(context).orientation == Orientation.landscape ? 2.0 : 4.0;
-                final badgeAreaHeight = max(0.0, constraints.maxHeight - 22.0);
+                //final badgeAreaHeight = max(0.0, constraints.maxHeight - 22.0);
 
                 return Container(
                   width: double.infinity,

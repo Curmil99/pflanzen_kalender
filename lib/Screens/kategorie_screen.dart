@@ -60,6 +60,93 @@ class _KategorieListeScreenState extends State<KategorieListeScreen> {
     );
   }
 
+  void _showKategorieBearbeitenDialog(String oldName) {
+    final TextEditingController controller = TextEditingController(text: oldName);
+    final int? currentIconCode = DayRepo().getKategorieIcon(oldName);
+    final List<IconData> icons = [
+      Icons.local_florist,
+      Icons.home,
+      Icons.favorite,
+      Icons.star,
+      Icons.nature,
+      Icons.eco,
+      Icons.label,
+      Icons.fitness_center, // Hantel
+      Icons.child_care,     // Kind
+      Icons.directions_car, // Auto
+    ];
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        int? selectedCode = currentIconCode;
+
+        return StatefulBuilder(builder: (context, setDialogState) {
+          return AlertDialog(
+            title: Text('Kategorie bearbeiten'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: controller,
+                  decoration: InputDecoration(hintText: 'Name der Kategorie'),
+                  autofocus: true,
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  children: icons.map((iconData) {
+                    final cp = iconData.codePoint;
+                    final selected = selectedCode == cp;
+                    return GestureDetector(
+                      onTap: () => setDialogState(() => selectedCode = cp),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: selected ? Theme.of(context).colorScheme.primary : Colors.transparent, width: 2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(iconData, size: 28),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: Text('Abbrechen')),
+              ElevatedButton(
+                onPressed: () async {
+                  final newName = controller.text.trim();
+                  if (newName.isEmpty) return;
+
+                  // Versuche umzubenennen
+                  final renamed = await DayRepo().renameKategorie(oldName, newName);
+                  if (!renamed) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Name existiert bereits oder ungültig')));
+                    return;
+                  }
+
+                  if (selectedCode != null) {
+                    await DayRepo().setKategorieIcon(newName, selectedCode!);
+                  }
+
+                  setState(() {
+                    final idx = kategorien.indexOf(oldName);
+                    if (idx != -1) kategorien[idx] = newName;
+                  });
+
+                  Navigator.pop(context);
+                },
+                child: Text('Speichern'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+  }
+
 
   void _showKategorieLoeschenDialog() {
     final Set<String> auswahl = {};
@@ -207,10 +294,14 @@ class _KategorieListeScreenState extends State<KategorieListeScreen> {
                         horizontal: 16,
                       ),
                       leading: CircleAvatar(
-                        backgroundColor:
-                            theme.colorScheme.secondary.withOpacity(0.22),
+                        backgroundColor: theme.colorScheme.secondary.withOpacity(0.22),
                         foregroundColor: theme.colorScheme.primary,
-                        child: const Icon(Icons.local_florist),
+                        child: Icon(
+                          // Nutze gespeichertes Icon, wenn vorhanden
+                          DayRepo().getKategorieIcon(kategorie) != null
+                              ? IconData(DayRepo().getKategorieIcon(kategorie)!, fontFamily: 'MaterialIcons')
+                              : Icons.local_florist,
+                        ),
                       ),
                       title: Text(
                         kategorie,
@@ -235,7 +326,18 @@ class _KategorieListeScreenState extends State<KategorieListeScreen> {
                                 });
                               },
                             )
-                          : const Icon(Icons.chevron_right),
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit),
+                                  onPressed: () {
+                                    _showKategorieBearbeitenDialog(kategorie);
+                                  },
+                                ),
+                                const Icon(Icons.chevron_right),
+                              ],
+                            ),
                       onTap: () {
                         if (_auswahlmodusK) {
                           setState(() {
