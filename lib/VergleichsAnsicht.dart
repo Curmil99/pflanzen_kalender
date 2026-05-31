@@ -582,6 +582,34 @@ void _onArrowPressed(bool forward, Vergleichseintrag eintrag) async {
 
   }
 
+  Widget _buildModeChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onSelected,
+  }) {
+    return GestureDetector(
+      onTap: onSelected,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? Colors.white : Colors.white38,
+            width: selected ? 1.8 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : Colors.white70,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
+  }
+
   //Für vollbildanzeige
   void _showImageViewer(BuildContext context, List<String> imagePaths, int initialIndex) {
     showDialog(
@@ -629,96 +657,120 @@ void _onArrowPressed(bool forward, Vergleichseintrag eintrag) async {
         title: const Text('Vergleichsansicht'),
         backgroundColor: Colors.green[800],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(70),
+          preferredSize: const Size.fromHeight(100),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.center,
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ---- LINKS: Modus & Navigation ----
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Row(
                   children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Hauptpflanze:',
+                              style: TextStyle(
+                                  color: Colors.white70, fontSize: 12)),
+                          const SizedBox(height: 4),
+                          Text(
+                            hauptEventName,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
                     Row(
                       children: [
-                        const Text('Modus: ',
-                            style: TextStyle(color: Colors.white70)),
-                        IconButton(
-                          icon: const Icon(Icons.arrow_left, color: Colors.white),
-                          onPressed: () {
-                            setState(() {
-                              modus = modus == VergleichsModus.relativ
-                                  ? VergleichsModus.datum
-                                  : VergleichsModus.relativ;
-                              vergleichseintraegeFuture = _loadVergleichsdaten();
-                            });
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.arrow_right, color: Colors.white),
-                          onPressed: () {
-                            setState(() {
-                              modus = modus == VergleichsModus.relativ
-                                  ? VergleichsModus.datum
-                                  : VergleichsModus.relativ;
-                              vergleichseintraegeFuture = _loadVergleichsdaten();
-                            });
-                          },
-                        ),
-                        if (eventModus == VergleichsEventModus.solo)
-                          IconButton(
-                            icon: const Icon(Icons.timer),
-                            tooltip: 'Intervall ändern',
-                            onPressed: _showIntervallDialog,
-                          ),
-                        
-                      ],
-                    ),
-                    Text(
-                      'Aktueller Modus: ${modus == VergleichsModus.relativ ? "Relativ" : "Datum"}',
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
-                  ],
-                ),
-
-                // ---- Solo / Group Switch Button----
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: const [
-                        Text('Group',
-                            style: TextStyle(color: Colors.white70, fontSize: 12)),
-                        SizedBox(height: 4),
-                        Text('Solo',
-                            style: TextStyle(color: Colors.white70, fontSize: 12)),
-                      ],
-                    ),
-                    const SizedBox(width: 6),
-                    Transform.scale(
-                      scale: 1.1,
-                      child: RotatedBox(
-                        quarterTurns: 1, // Switch horizontal drehen
-                        child: Switch(
+                        const Text('Gruppe',
+                            style: TextStyle(
+                                color: Colors.white70, fontSize: 12)),
+                        const SizedBox(width: 6),
+                        Switch(
                           value: eventModus == VergleichsEventModus.solo,
                           onChanged: (value) {
                             setState(() {
                               eventModus = value
                                   ? VergleichsEventModus.solo
                                   : VergleichsEventModus.group;
-                              vergleichseintraegeFuture = _loadVergleichsdaten();
+                              vergleichseintraegeFuture =
+                                  _loadVergleichsdaten();
                             });
                           },
                           activeColor: Colors.white,
-                          inactiveThumbColor: Colors.white70,
                           activeTrackColor: Colors.green[600],
-                          inactiveTrackColor: Colors.grey[600],
+                          inactiveThumbColor: Colors.white,
+                          inactiveTrackColor: Colors.white24,
                         ),
+                        const SizedBox(width: 6),
+                        const Text('Solo',
+                            style: TextStyle(
+                                color: Colors.white70, fontSize: 12)),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          _buildModeChip(
+                            label: '📅 Datum',
+                            selected: modus == VergleichsModus.datum,
+                            onSelected: () {
+                              setState(() {
+                                modus = VergleichsModus.datum;
+                                vergleichseintraegeFuture = _loadVergleichsdaten();
+                              });
+                            },
+                          ),
+                          const SizedBox(width: 6),
+                          _buildModeChip(
+                            label: '📊 Relativ',
+                            selected: modus == VergleichsModus.relativ,
+                            onSelected: () {
+                              setState(() {
+                                modus = VergleichsModus.relativ;
+                                vergleichseintraegeFuture = _loadVergleichsdaten();
+                              });
+                            },
+                          ),
+                        ],
                       ),
                     ),
+                    if (eventModus == VergleichsEventModus.solo)
+                      GestureDetector(
+                        onTap: _showIntervallDialog,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white12,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white24),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.timer,
+                                  color: Colors.white70, size: 16),
+                              const SizedBox(width: 6),
+                              Text('$tageIntervall d',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ],
@@ -733,103 +785,166 @@ void _onArrowPressed(bool forward, Vergleichseintrag eintrag) async {
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
           final vergleichseintraege = snapshot.data!;
           return ListView.builder(
+            padding: const EdgeInsets.all(8),
             itemCount: vergleichseintraege.length,
             itemBuilder: (_, index) {
               final eintrag = vergleichseintraege[index];
-              return GestureDetector(
-                onTap: () => _onMakeEventMain(eintrag),
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Header
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              final isFixed = _fixedIDs.contains(eintrag.eintrag.id);
+              
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                child: Card(
+                  elevation: isFixed ? 4 : 2,
+                  color: isFixed ? Colors.green[50] : Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: isFixed
+                        ? BorderSide(color: Colors.green[400]!, width: 2)
+                        : BorderSide.none,
+                  ),
+                  child: InkWell(
+                    onTap: () => _onMakeEventMain(eintrag),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          eventModus == VergleichsEventModus.solo
-                              ? Text(
-                                  eintrag.label.isNotEmpty
-                                    ? eintrag.label
-                                    : '0 Tage',
-                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                )
-                              : Text(
-                                  eintrag.eventName,
-                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                ),
+                          // ---- HEADER: Name und Fixieren Button ----
                           Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              const Text("Fixieren"),
-                              Checkbox(
-                                value: _fixedIDs.contains(eintrag.eintrag.id),
-                                onChanged: (val) {
+                              Expanded(
+                                child: Text(
+                                  eventModus == VergleichsEventModus.solo
+                                      ? eintrag.label.isNotEmpty
+                                          ? eintrag.label
+                                          : '0 Tage'
+                                      : eintrag.eventName,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey[800],
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              IconButton(
+                                icon: Icon(
+                                  isFixed ? Icons.push_pin : Icons.push_pin_outlined,
+                                  color: isFixed ? Colors.green[700] : Colors.grey[400],
+                                  size: 22,
+                                ),
+                                tooltip: isFixed ? 'Entfernen' : 'Fixieren',
+                                onPressed: () {
                                   setState(() {
-                                    if (val == true) {
-                                      debugPrint('[FIX] added id=${eintrag.eintrag.id} for event=${eintrag.eventName}');
-                                      _fixedIDs.add(eintrag.eintrag.id);
-                                    } else {
+                                    if (isFixed) {
                                       debugPrint('[FIX] removed id=${eintrag.eintrag.id} for event=${eintrag.eventName}');
                                       _fixedIDs.remove(eintrag.eintrag.id);
+                                    } else {
+                                      debugPrint('[FIX] added id=${eintrag.eintrag.id} for event=${eintrag.eventName}');
+                                      _fixedIDs.add(eintrag.eintrag.id);
                                     }
                                     debugPrint('[FIX] current fixed IDs: ${_fixedIDs.toList()}');
                                   });
                                 },
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                               ),
                             ],
                           ),
-                          if (eventModus != VergleichsEventModus.solo)
-                            Text('Tag ${eintrag.tag + 1}'),
-                        ],
-                      ),
-
-                      const SizedBox(height: 4),
-                      // Titel + Pfeile
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          IconButton(
-                              icon: const Icon(Icons.arrow_left),
-                              onPressed: () => _onArrowPressed(false, eintrag)),
-                          Expanded(
-                            child: Text(
-                              eintrag.eintrag.title.isNotEmpty
-                                  ? eintrag.eintrag.title
-                                  : 'Ohne Titel',
-                              style: TextStyle(color: Colors.grey[600]),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          IconButton(
-                              icon: const Icon(Icons.arrow_right),
-                              onPressed: () => _onArrowPressed(true, eintrag)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      // Bilder
-                      if (eintrag.eintrag.imagePaths.isNotEmpty)
-                        SizedBox(
-                          height: 100,
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: eintrag.eintrag.imagePaths.length,
-                            itemBuilder: (_, imgIndex) {
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 8.0),
-                                child: GestureDetector(
-                                  onTap: () => _showImageViewer(context, eintrag.eintrag.imagePaths, imgIndex),
-                                  child: Image.file(
-                                    File(eintrag.eintrag.imagePaths[imgIndex]),
-                                    width: 100,
-                                    height: 100,
-                                    fit: BoxFit.cover,
+                          const SizedBox(height: 4),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              if (eventModus == VergleichsEventModus.group)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green[50],
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    'Tag ${eintrag.tag + 1}',
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.green[800]),
                                   ),
                                 ),
-                              );
-                            },
+                              if (eventModus == VergleichsEventModus.group)
+                                const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  DateTime.tryParse(eintrag.eintrag.datum) != null
+                                      ? '${eintrag.eintrag.datum}'
+                                      : '',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.chevron_left),
+                                color: Colors.grey[600],
+                                onPressed: () => _onArrowPressed(false, eintrag),
+                                padding: EdgeInsets.zero,
+                                constraints:
+                                    const BoxConstraints(minWidth: 36, minHeight: 36),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.chevron_right),
+                                color: Colors.grey[600],
+                                onPressed: () => _onArrowPressed(true, eintrag),
+                                padding: EdgeInsets.zero,
+                                constraints:
+                                    const BoxConstraints(minWidth: 36, minHeight: 36),
+                              ),
+                            ],
                           ),
-                        ),
-                    ],
+
+                          // ---- BILDER ----
+                          if (eintrag.eintrag.imagePaths.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              height: 90,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: ListView.builder(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: eintrag.eintrag.imagePaths.length,
+                                  itemBuilder: (_, imgIndex) {
+                                    return Padding(
+                                      padding: const EdgeInsets.only(right: 8.0),
+                                      child: GestureDetector(
+                                        onTap: () => _showImageViewer(
+                                          context,
+                                          eintrag.eintrag.imagePaths,
+                                          imgIndex,
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(6),
+                                          child: Image.file(
+                                            File(eintrag
+                                                .eintrag.imagePaths[imgIndex]),
+                                            width: 100,
+                                            height: 90,
+                                            fit: BoxFit.cover,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               );
