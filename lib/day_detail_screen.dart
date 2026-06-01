@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/day_entry.dart';        // DayEntry Modell
 import '../repositories/day_repo.dart';  // DayRepo Singleton
-import 'vergleichsansicht.dart';
+import 'Screens/vergleichsansicht/vergleichsansicht.dart';
 
 
 
